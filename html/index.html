@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helix Preset Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0a0a0f; }
+        .drag-over { border-color: #f59e0b !important; background: rgba(245,158,11,0.08) !important; }
+        .chain-arrow { width:20px; flex-shrink:0; display:flex; align-items:center; }
+        .chain-line { height:2px; background:#374151; flex:1; }
+        .chain-arrowhead { width:0; height:0; border-top:5px solid transparent; border-bottom:5px solid transparent; border-left:8px solid #374151; flex-shrink:0; }
+        .block-chip { transition: transform 0.15s, box-shadow 0.15s; }
+        .block-chip:hover { transform: translateY(-2px); }
+        .highlight-pulse { animation: pulse-border 1.5s ease-in-out; }
+        @keyframes pulse-border { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 0 3px #f59e0b} }
+        .split-bracket-top { border-top:2px solid #4b5563; border-right:2px solid #4b5563; height:50%; border-radius:0 6px 0 0; }
+        .split-bracket-bot { border-bottom:2px solid #4b5563; border-right:2px solid #4b5563; height:50%; border-radius:0 0 6px 0; }
+        .join-bracket-top { border-top:2px solid #4b5563; border-left:2px solid #4b5563; height:50%; border-radius:6px 0 0 0; }
+        .join-bracket-bot { border-bottom:2px solid #4b5563; border-left:2px solid #4b5563; height:50%; border-radius:0 0 0 6px; }
+        .path-line { height:2px; background:#374151; width:16px; flex-shrink:0; align-self:center; }
+    </style>
+</head>
+<body class="text-gray-100 min-h-screen">
+
+<!-- ── HEADER ─────────────────────────────────────────────────── -->
+<header class="bg-gray-900/80 backdrop-blur border-b border-gray-800 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center font-black text-gray-900 text-sm">H</div>
+            <div>
+                <div class="font-bold text-white leading-tight">Helix Preset Viewer</div>
+                <div class="text-xs text-gray-500">Line 6 HX Preset Visualizer</div>
+            </div>
+        </div>
+        <button id="btn-new"
+            class="hidden text-xs text-gray-400 border border-gray-600 hover:border-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition-colors">
+            ← Load New Preset
+        </button>
+    </div>
+</header>
+
+<!-- ── UPLOAD ZONE ────────────────────────────────────────────── -->
+<div id="upload-zone" class="flex items-center justify-center min-h-[calc(100vh-57px)] p-6">
+    <div class="w-full max-w-lg space-y-4">
+        <div id="drop-area"
+             class="border-2 border-dashed border-gray-700 rounded-2xl p-14 text-center cursor-pointer hover:border-amber-500 hover:bg-amber-500/5 transition-all"
+             onclick="document.getElementById('file-input').click()">
+            <div class="text-5xl mb-4">🎸</div>
+            <div class="text-xl font-bold text-white mb-2">Drop Your Preset Here</div>
+            <div class="text-sm text-gray-400 mb-6">Drag &amp; drop a <code class="text-amber-400">.hlx</code> file, or click to browse</div>
+            <div class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold px-6 py-2.5 rounded-full text-sm transition-colors">
+                Choose File
+            </div>
+            <div class="mt-4 text-xs text-gray-600">Helix / HX Stomp / HX Effects preset files</div>
+        </div>
+        <input type="file" id="file-input" accept=".hlx,.json" class="hidden">
+        <div id="upload-error" class="hidden bg-red-950 border border-red-700 text-red-300 text-sm rounded-xl p-4 text-center"></div>
+    </div>
+</div>
+
+<!-- ── PRESET DISPLAY ─────────────────────────────────────────── -->
+<div id="preset-display" class="hidden">
+    <div class="bg-gray-900/60 border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 py-5" id="preset-meta"></div>
+    </div>
+    <div class="max-w-7xl mx-auto px-4 py-8 space-y-10">
+        <div id="signal-chains"></div>
+        <div id="snapshots-section"></div>
+        <div id="footswitches-section"></div>
+        <div id="block-details"></div>
+    </div>
+</div>
+
+<script>
+// ================================================================
+// MODEL DATABASE
+// Maps @model ID → { name, category, info? }
+// ================================================================
+const MODEL_DB = {
+    // Routing / Flow
+    'HD2_AppDSPFlow1Input':      { name: 'Input 1',            category: 'Input'    },
+    'HD2_AppDSPFlow2Input':      { name: 'Input 2',            category: 'Input'    },
+    'HD2_AppDSPFlowOutput':      { name: 'Output',             category: 'Output'   },
+    'HD2_AppDSPFlowSplitY':      { name: 'Y Split',            category: 'Routing'  },
+    'HD2_AppDSPFlowSplitAB':     { name: 'A/B Split',          category: 'Routing'  },
+    'HD2_AppDSPFlowSplitCross':  { name: 'Crossover Split',    category: 'Routing'  },
+    'HD2_AppDSPFlowJoin':        { name: 'Merge',              category: 'Routing'  },
+
+    // Amps
+    'HD2_AmpTucknGo':            { name: 'Tuck and Go',        category: 'Amp',     info: 'Peavey T-Max Bass Amp'        },
+    'HD2_AmpPlexiLead':          { name: 'Plexi Lead',         category: 'Amp',     info: 'Marshall Super Lead 1959'     },
+    'HD2_AmpPlexiRhythm':        { name: 'Plexi Rhythm',       category: 'Amp',     info: 'Marshall Super Lead 1959'     },
+    'HD2_AmpBritJM25':           { name: 'Brit J-M25',         category: 'Amp',     info: 'Marshall JMP 2203'            },
+    'HD2_AmpBritSignature':      { name: 'Brit Signature',     category: 'Amp',     info: 'Marshall Silver Jubilee'      },
+    'HD2_AmpBritPower':          { name: 'Brit Power',         category: 'Amp',     info: 'Marshall Power Amp'           },
+    'HD2_AmpDzlRhythm':          { name: 'Diezel Rhythm',      category: 'Amp',     info: 'Diezel Herbert'               },
+    'HD2_AmpDzlLead':            { name: 'Diezel Lead',        category: 'Amp',     info: 'Diezel Herbert'               },
+    'HD2_AmpRectoOrange':        { name: 'Cali IV Rhythm 1',   category: 'Amp',     info: 'Mesa Boogie Dual Rectifier'   },
+    'HD2_AmpRectoRed':           { name: 'Cali IV Lead',       category: 'Amp',     info: 'Mesa Boogie Dual Rectifier'   },
+    'HD2_AmpSLO100Lead':         { name: 'SLO-100 Lead',       category: 'Amp',     info: 'Soldano SLO-100'              },
+    'HD2_AmpFenderDeluxe':       { name: 'Deluxe Reverb',      category: 'Amp',     info: '1965 Fender Deluxe Reverb'    },
+    'HD2_AmpFenderTwin':         { name: 'US Double Normal',   category: 'Amp',     info: '1965 Fender Twin Reverb'      },
+    'HD2_AmpBlackface':          { name: 'US Deluxe Nrm',      category: 'Amp',     info: 'Blackface Deluxe'             },
+    'HD2_AmpVox':                { name: 'Vox AC-30',          category: 'Amp',     info: 'Vox AC-30 Fawn'               },
+    'HD2_AmpMatchlessHC30':      { name: 'Matchless HC30',     category: 'Amp',     info: 'Matchless DC-30'              },
+    'HD2_AmpHiWatt':             { name: 'Hiwatt DR103',       category: 'Amp',     info: 'Hiwatt DR-103'                },
+    'HD2_AmpPVHHX':              { name: 'PV Panama',          category: 'Amp',     info: 'Peavey 5150'                  },
+    'HD2_AmpArchon':             { name: 'Archon Lead',        category: 'Amp',     info: 'PRS Archon'                   },
+    'HD2_AmpAgilityLP':          { name: 'Agility LP',         category: 'Amp'                                           },
+    'HD2_AmpAmpeg':              { name: 'Ampeg SVT Pro',      category: 'Amp',     info: 'Ampeg SVT Bass Amp'           },
+    'HD2_AmpGenzBenz':           { name: 'Genz Benz Shuttle',  category: 'Amp',     info: 'Genz Benz Shuttle 6.0'        },
+    'HD2_AmpGallienKrueger':     { name: 'G-K 800RB',          category: 'Amp',     info: 'Gallien-Krueger 800RB'        },
+    'HD2_AmpFenderBassman':      { name: 'Tweed B-Man',        category: 'Amp',     info: 'Fender Bassman'               },
+
+    // Cabinets
+    'HD2_Cab1x15TucknGo':        { name: '1×15 Tuck and Go',   category: 'Cabinet', info: 'Peavey 1×15 Bass Cabinet'    },
+    'HD2_Cab1x15AmpB15':         { name: '1×15 Ampeg B-15',    category: 'Cabinet', info: 'Ampeg B-15 Cabinet'          },
+    'HD2_Cab4x12':               { name: '4×12 Cali',          category: 'Cabinet', info: 'Mesa Boogie 4×12'            },
+    'HD2_Cab2x12':               { name: '2×12 Jazz Rivet',    category: 'Cabinet'                                       },
+    'HD2_Cab1x12':               { name: '1×12 Tweed B-Man',   category: 'Cabinet', info: 'Fender Bassman 1×12'         },
+    'HD2_Cab4x12BritT75':        { name: '4×12 Brit T75',      category: 'Cabinet', info: 'Marshall 1960 4×12'          },
+    'HD2_Cab4x12Greenback':      { name: '4×12 Greenback',     category: 'Cabinet', info: 'Marshall 4×12 Greenback'     },
+    'HD2_Cab1x12Blackface':      { name: '1×12 Blackface',     category: 'Cabinet'                                       },
+    'HD2_Cab2x12MatchC30':       { name: '2×12 Match DC30',    category: 'Cabinet', info: 'Matchless DC-30 2×12'        },
+    'HD2_ImpulseResponse1024':   { name: 'Impulse Response',   category: 'IR',      info: '1024-sample IR block'        },
+    'HD2_ImpulseResponse2048':   { name: 'Impulse Response',   category: 'IR',      info: '2048-sample IR block'        },
+
+    // Compressors / Dynamics
+    'HD2_Compressor3BandComp':   { name: '3-Band Compressor',  category: 'Dynamics', info: 'Multi-band compressor'      },
+    'HD2_CompressorDeluxeComp':  { name: 'Deluxe Comp',        category: 'Dynamics', info: 'Boss CS-3 style'           },
+    'HD2_CompressorKcComp':      { name: 'Kinetic Crystal',    category: 'Dynamics'                                      },
+    'HD2_CompressorKCComp':      { name: 'Kinetic Crystal',    category: 'Dynamics'                                      },
+    'HD2_CompressorJohnstonComp':{ name: 'Rochester Comp',     category: 'Dynamics'                                      },
+    'HD2_CompressorScotty':      { name: 'Smoky Room',         category: 'Dynamics'                                      },
+    'HD2_CompressorMiniComp':    { name: 'LA Comp',            category: 'Dynamics', info: 'Teletronix LA-2A style'     },
+    'HD2_CompressorVintage':     { name: 'Tube Comp',          category: 'Dynamics'                                      },
+    'HD2_CompressorOptical':     { name: 'Optical Comp',       category: 'Dynamics'                                      },
+    'HD2_NoiseGate':             { name: 'Noise Gate',         category: 'Dynamics'                                      },
+
+    // Drive / Distortion / Fuzz
+    'HD2_DriveRatDistortion':    { name: 'Rat Distortion',     category: 'Drive',   info: 'ProCo RAT'                   },
+    'HD2_DriveTubeScreamer':     { name: 'Tube Screamer',      category: 'Drive',   info: 'Ibanez TS808'                },
+    'HD2_DriveKlone':            { name: 'Timmy OD',           category: 'Drive',   info: 'Tim/Timmy OD'               },
+    'HD2_DriveHouseFuzz':        { name: 'Arbitrator Fuzz',    category: 'Drive',   info: 'Arbiter Fuzz Face'           },
+    'HD2_DriveMaestroFuzz':      { name: 'Jumbo Fuzz',         category: 'Drive',   info: 'Maestro FZ-1 Fuzz-Tone'     },
+    'HD2_DriveBigMuff':          { name: 'Triangle Fuzz',      category: 'Drive',   info: 'EH Big Muff Pi'             },
+    'HD2_DriveGovnor':           { name: 'Obsidian 7000',      category: 'Drive',   info: 'Marshall Guv\'nor'          },
+    'HD2_DriveDistPlus':         { name: 'Stupor OD',          category: 'Drive',   info: 'MXR Distortion+'            },
+    'HD2_DriveBossMt2':          { name: 'Vermin Dist',        category: 'Drive',   info: 'Boss MT-2 Metal Zone'       },
+    'HD2_DrivePasadena':         { name: 'Deez One Vintage',   category: 'Drive'                                        },
+    'HD2_DriveEnglGL6':          { name: 'Clarity Boost',      category: 'Drive',   info: 'Treble Booster style'       },
+
+    // EQ
+    'HD2_EQGraphic10Band':       { name: '10-Band Graphic EQ', category: 'EQ',      info: '10-band equalizer'           },
+    'HD2_EQSimple':              { name: 'Simple EQ',          category: 'EQ'                                            },
+    'HD2_EQParametric':          { name: 'Parametric EQ',      category: 'EQ'                                            },
+    'HD2_EQLowHighcut':          { name: 'Low/High Cut EQ',    category: 'EQ'                                            },
+    'HD2_EQLowpass':             { name: 'Low Pass EQ',        category: 'EQ'                                            },
+    'HD2_EQHighpass':            { name: 'High Pass EQ',       category: 'EQ'                                            },
+    'HD2_EQLegacyMid':           { name: 'Mid Focus EQ',       category: 'EQ'                                            },
+
+    // Modulation
+    'HD2_ChorusPlastiChorus':    { name: 'PlastiChorus',        category: 'Chorus',   info: 'EH Small Clone style'      },
+    'HD2_ChorusBoss':            { name: 'Boss CE-1',           category: 'Chorus',   info: 'Boss CE-1 Chorus Ensemble' },
+    'HD2_ChorusAnalog':          { name: 'Analog Chorus',       category: 'Chorus'                                       },
+    'HD2_ChorusDimension':       { name: 'Dimension',           category: 'Chorus',   info: 'Roland Dimension D'        },
+    'HD2_ChorusTriChorus':       { name: 'Tri Chorus',          category: 'Chorus'                                       },
+    'HD2_ChorusMirage':          { name: 'Mirage Doubler',      category: 'Chorus'                                       },
+    'HD2_FlangerDoubletake':     { name: 'Double Take',         category: 'Flanger'                                      },
+    'HD2_FlangerAda':            { name: 'ADA Flanger',         category: 'Flanger',  info: 'ADA Flanger'               },
+    'HD2_FlangerMxr117':         { name: 'MXR Flanger',         category: 'Flanger',  info: 'MXR M117R'                 },
+    'HD2_PhaserDeluxe45':        { name: 'Deluxe Phaser',       category: 'Phaser'                                       },
+    'HD2_PhaserGrayStar':        { name: 'Gray Flanger',        category: 'Phaser'                                       },
+    'HD2_PhaserSeasonPhaser':    { name: 'Ubiquitous Vibe',     category: 'Phaser'                                       },
+    'HD2_TremoloSplit':          { name: 'Transistor Tape',     category: 'Tremolo'                                      },
+    'HD2_TremoloDigital':        { name: 'Digital Tremolo',     category: 'Tremolo'                                      },
+    'HD2_VibratoAnalog':         { name: 'Analog Vibrato',      category: 'Vibrato'                                      },
+
+    // Pitch
+    'HD2_PitchSimplePitch':      { name: 'Simple Pitch',        category: 'Pitch',   info: 'Pitch shift / octaver'      },
+    'HD2_PitchHardTune':         { name: 'Hard Tune',           category: 'Pitch',   info: 'Auto-tune / Harmony'        },
+    'HD2_PitchShimmer':          { name: 'Pitch Wham',          category: 'Pitch'                                        },
+    'HD2_PitchDouble':           { name: 'Double Bass',         category: 'Pitch'                                        },
+    'HD2_PitchHarmonize':        { name: 'Harmony',             category: 'Pitch'                                        },
+    'HD2_PitchHarmony3Voice':    { name: '3-Voice Harmony',     category: 'Pitch'                                        },
+    'HD2_PitchSyntheticChorus':  { name: 'Synth Chorus',        category: 'Pitch'                                        },
+
+    // Delay
+    'HD2_DelayDigital':          { name: 'Digital Delay',       category: 'Delay'                                        },
+    'HD2_DelayAnalog':           { name: 'Analog Echo',         category: 'Delay'                                        },
+    'HD2_DelayMultitap':         { name: 'Multi-Tap Delay',     category: 'Delay'                                        },
+    'HD2_DelayLoFi':             { name: 'Lo-Fi Delay',         category: 'Delay'                                        },
+    'HD2_DelayTape':             { name: 'Tape Echo',           category: 'Delay',   info: 'Echoplex EP-3 style'        },
+    'HD2_DelayMeistersinger':    { name: 'Cosmos Echo',         category: 'Delay',   info: 'Roland Space Echo'          },
+    'HD2_DelayPing':             { name: 'Ping Pong',           category: 'Delay'                                        },
+    'HD2_DelayReverse':          { name: 'Reverse Delay',       category: 'Delay'                                        },
+    'HD2_DelayGlitch':           { name: 'Glitch Delay',        category: 'Delay'                                        },
+    'HD2_DelayHarmonicEcho':     { name: 'Harmonic Echo',       category: 'Delay'                                        },
+    'HD2_DelayWarpedTape':       { name: 'Warped Tape',         category: 'Delay'                                        },
+    'HD2_DelayDotted':           { name: 'Dotted 1/8 Delay',   category: 'Delay'                                        },
+
+    // Reverb
+    'VIC_ReverbDynRoom':         { name: 'Dynamic Room',        category: 'Reverb',  info: 'Room reverb'                },
+    'HD2_ReverbRoom':            { name: 'Room Reverb',         category: 'Reverb'                                       },
+    'HD2_ReverbHall':            { name: 'Hall Reverb',         category: 'Reverb'                                       },
+    'HD2_ReverbPlate':           { name: 'Plate Reverb',        category: 'Reverb'                                       },
+    'HD2_ReverbSpring':          { name: 'Spring Reverb',       category: 'Reverb'                                       },
+    'HD2_ReverbCave':            { name: 'Cave Reverb',         category: 'Reverb'                                       },
+    'HD2_ReverbStudio':          { name: 'Studio Reverb',       category: 'Reverb'                                       },
+    'HD2_ReverbChurchHall':      { name: 'Cathedral',           category: 'Reverb'                                       },
+    'HD2_ReverbShimmer':         { name: 'Shimmer Reverb',      category: 'Reverb'                                       },
+    'HD2_ReverbSearchlight':     { name: 'Searchlights',        category: 'Reverb'                                       },
+    'HD2_ReverbDouble':          { name: 'Double Tank',         category: 'Reverb'                                       },
+    'HD2_ReverbGan':             { name: 'Gloss Cave',          category: 'Reverb'                                       },
+
+    // Filter / Wah
+    'HD2_FilterToeSwitch':       { name: 'Wah',                 category: 'Wah'                                          },
+    'HD2_FilterGStrip':          { name: 'G String Cry',        category: 'Wah',     info: 'Morley G2'                  },
+    'HD2_FilterVowel':           { name: 'Fassel Cry Baby',     category: 'Wah',     info: 'Dunlop Cry Baby'            },
+    'HD2_FilterEnvelope':        { name: 'Auto Filter',         category: 'Filter'                                       },
+    'HD2_FilterEnvLPF':          { name: 'Mutant Filter',       category: 'Filter'                                       },
+    'HD2_FilterEnvBPF':          { name: 'Voice Box',           category: 'Filter'                                       },
+    'HD2_FilterToneSelect':      { name: 'Tone Shifter',        category: 'Filter'                                       },
+
+    // Volume / Pan
+    'HD2_VolPanVol':             { name: 'Volume Pedal',        category: 'Volume'                                       },
+    'HD2_VolPanPan':             { name: 'Pan',                 category: 'Volume'                                       },
+
+    // Synth
+    'RezSynth':                  { name: 'Rez Synth',           category: 'Synth'                                        },
+    'HD2_SynthOctavia':          { name: 'Octavia',             category: 'Synth'                                        },
+    'HD2_SynthBass':             { name: 'Bass Synth',          category: 'Synth'                                        },
+};
+
+// ================================================================
+// CATEGORY STYLES
+// ================================================================
+const CAT_STYLE = {
+    Amp:      { bg:'bg-amber-950',  border:'border-amber-600',  text:'text-amber-300',  badge:'bg-amber-800',  dot:'bg-amber-400'  },
+    Cabinet:  { bg:'bg-stone-950',  border:'border-stone-600',  text:'text-stone-300',  badge:'bg-stone-800',  dot:'bg-stone-400'  },
+    IR:       { bg:'bg-stone-950',  border:'border-stone-600',  text:'text-stone-300',  badge:'bg-stone-800',  dot:'bg-stone-400'  },
+    Dynamics: { bg:'bg-blue-950',   border:'border-blue-600',   text:'text-blue-300',   badge:'bg-blue-800',   dot:'bg-blue-400'   },
+    EQ:       { bg:'bg-green-950',  border:'border-green-600',  text:'text-green-300',  badge:'bg-green-800',  dot:'bg-green-400'  },
+    Drive:    { bg:'bg-red-950',    border:'border-red-600',    text:'text-red-300',    badge:'bg-red-800',    dot:'bg-red-400'    },
+    Chorus:   { bg:'bg-violet-950', border:'border-violet-600', text:'text-violet-300', badge:'bg-violet-800', dot:'bg-violet-400' },
+    Flanger:  { bg:'bg-purple-950', border:'border-purple-600', text:'text-purple-300', badge:'bg-purple-800', dot:'bg-purple-400' },
+    Phaser:   { bg:'bg-purple-950', border:'border-purple-600', text:'text-purple-300', badge:'bg-purple-800', dot:'bg-purple-400' },
+    Tremolo:  { bg:'bg-purple-950', border:'border-purple-600', text:'text-purple-300', badge:'bg-purple-800', dot:'bg-purple-400' },
+    Vibrato:  { bg:'bg-purple-950', border:'border-purple-600', text:'text-purple-300', badge:'bg-purple-800', dot:'bg-purple-400' },
+    Pitch:    { bg:'bg-indigo-950', border:'border-indigo-600', text:'text-indigo-300', badge:'bg-indigo-800', dot:'bg-indigo-400' },
+    Delay:    { bg:'bg-orange-950', border:'border-orange-600', text:'text-orange-300', badge:'bg-orange-800', dot:'bg-orange-400' },
+    Reverb:   { bg:'bg-cyan-950',   border:'border-cyan-600',   text:'text-cyan-300',   badge:'bg-cyan-800',   dot:'bg-cyan-400'   },
+    Wah:      { bg:'bg-yellow-950', border:'border-yellow-600', text:'text-yellow-300', badge:'bg-yellow-800', dot:'bg-yellow-400' },
+    Filter:   { bg:'bg-yellow-950', border:'border-yellow-600', text:'text-yellow-300', badge:'bg-yellow-800', dot:'bg-yellow-400' },
+    Volume:   { bg:'bg-slate-900',  border:'border-slate-600',  text:'text-slate-300',  badge:'bg-slate-700',  dot:'bg-slate-400'  },
+    Synth:    { bg:'bg-pink-950',   border:'border-pink-600',   text:'text-pink-300',   badge:'bg-pink-800',   dot:'bg-pink-400'   },
+    Routing:  { bg:'bg-gray-900',   border:'border-gray-600',   text:'text-gray-300',   badge:'bg-gray-700',   dot:'bg-gray-500'   },
+    Input:    { bg:'bg-gray-900',   border:'border-gray-700',   text:'text-gray-400',   badge:'bg-gray-700',   dot:'bg-gray-500'   },
+    Output:   { bg:'bg-gray-900',   border:'border-gray-700',   text:'text-gray-400',   badge:'bg-gray-700',   dot:'bg-gray-500'   },
+    Unknown:  { bg:'bg-gray-900',   border:'border-gray-700',   text:'text-gray-400',   badge:'bg-gray-700',   dot:'bg-gray-500'   },
+};
+
+// ================================================================
+// PARAMETER FORMATTING
+// ================================================================
+
+// Specific param keys that represent dB values
+const DB_PARAMS = new Set(['level','gain','threshold','lo thresh','hi thresh','mid thresh',
+    'bass','treble','mid','high','low','highmid','lowmid','higherr','lowerr','erlevel',
+    'speakerlevel','irlevel','flatlevel','a level','b level']);
+
+// Keys that are 0-1 representing percentage
+const PCT_PARAMS = new Set(['mix','depth','spread','tone','sag','hum','ripple','bias','biasx',
+    'decay','diffusion','damping','bassboost','erLevel','er level','balance','balanceb','balancea',
+    'pedal','distance','drive','master','chvol']);
+
+// Keys that represent Hz
+const HZ_PARAMS = new Set(['rate','locut','lowcut','highcut','hicut','bassfreq','matrfreq',
+    'lo x freq','hi x freq','lowcut','lcut']);
+
+function lookupModel(modelId) {
+    if (!modelId || modelId.startsWith('@')) return { name: 'Unknown', category: 'Unknown' };
+    if (MODEL_DB[modelId]) return MODEL_DB[modelId];
+
+    // Auto-parse model ID into a readable name
+    let name = modelId;
+    let category = 'Unknown';
+    const prefixes = [
+        ['HD2_Amp','Amp'],['HD2_Cab','Cabinet'],['HD2_Compressor','Dynamics'],
+        ['HD2_Chorus','Chorus'],['HD2_Flanger','Flanger'],['HD2_Phaser','Phaser'],
+        ['HD2_Tremolo','Tremolo'],['HD2_Vibrato','Vibrato'],['HD2_Pitch','Pitch'],
+        ['HD2_Delay','Delay'],['HD2_Reverb','Reverb'],['HD2_EQ','EQ'],
+        ['HD2_Filter','Filter'],['HD2_Drive','Drive'],['HD2_Distortion','Drive'],
+        ['HD2_Wah','Wah'],['HD2_VolPan','Volume'],['HD2_Vol','Volume'],
+        ['HD2_NoiseGate','Dynamics'],['HD2_AppDSPFlow','Routing'],
+        ['HD2_ImpulseResponse','IR'],['VIC_Reverb','Reverb'],['VIC_Delay','Delay'],
+        ['VIC_Chorus','Chorus'],['VIC_Dist','Drive'],['VIC_',''],['HD2_',''],['LIN_',''],
+    ];
+    for (const [pfx, cat] of prefixes) {
+        if (name.startsWith(pfx)) {
+            name = name.slice(pfx.length);
+            if (cat) category = cat;
+            break;
+        }
+    }
+    // camelCase → Title Case with spaces
+    name = name.replace(/([A-Z])/g, ' $1').trim() || modelId;
+    return { name, category };
+}
+
+function catStyle(category) {
+    return CAT_STYLE[category] || CAT_STYLE.Unknown;
+}
+
+function fmtParamName(key) {
+    if (key.startsWith('@')) return null;
+    // Already has spaces (e.g. "Lo Thresh")
+    if (key.includes(' ')) return key;
+    // camelCase → spaced
+    return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+}
+
+function fmtParamValue(key, value) {
+    if (typeof value === 'boolean') return value ? 'On' : 'Off';
+    if (typeof value === 'string')  return value;
+    if (typeof value !== 'number')  return JSON.stringify(value);
+
+    const lk = key.toLowerCase().trim();
+
+    if (DB_PARAMS.has(lk)) {
+        const sign = value > 0 ? '+' : '';
+        return `${sign}${value % 1 === 0 ? value : value.toFixed(1)} dB`;
+    }
+    if (PCT_PARAMS.has(lk)) return `${Math.round(value * 100)}%`;
+    if (HZ_PARAMS.has(lk)) {
+        if (value >= 1000) return `${(value/1000).toFixed(1)} kHz`;
+        return `${value.toFixed(0)} Hz`;
+    }
+    if (lk === 'ratio') return `${value.toFixed(1)}:1`;
+    if (lk === 'attack' || lk === 'release' || lk === 'predelay' || lk === 'pre delay') {
+        if (value < 0.1) return `${(value * 1000).toFixed(0)} ms`;
+        return `${value.toFixed(2)} s`;
+    }
+    if (lk.includes('freq') || lk.includes('hz')) {
+        if (value >= 1000) return `${(value/1000).toFixed(1)} kHz`;
+        return `${value.toFixed(0)} Hz`;
+    }
+    if (lk === 'interval1' || lk === 'interval2' || lk === 'cents1' || lk === 'cents2') {
+        if (lk.includes('cents')) return `${value > 0 ? '+' : ''}${value} cents`;
+        const semitones = Math.abs(value);
+        return `${value > 0 ? '+' : value < 0 ? '-' : ''}${semitones} semi`;
+    }
+    // EQ frequency bands like "31p25Hz", "62p5Hz", "125Hz" etc
+    if (/^\d+p?\d*hz$/i.test(lk)) {
+        const sign = value > 0 ? '+' : '';
+        return `${sign}${value.toFixed(1)} dB`;
+    }
+    // Normalize 0-1 values as percentage if they seem to be that
+    if (value >= 0 && value <= 1 && value % 1 !== 0) return `${Math.round(value * 100)}%`;
+    if (Number.isInteger(value)) return String(value);
+    return value.toFixed(2);
+}
+
+// ================================================================
+// SIGNAL CHAIN BUILDING
+// ================================================================
+
+function buildChain(dspData, topology) {
+    const allBlocks = {};
+    for (const [key, val] of Object.entries(dspData)) {
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+            allBlocks[key] = { _id: key, ...val };
+        }
+    }
+
+    const routing = ['inputA','inputB','split','join','outputA','outputB','cab0'];
+    const effects = Object.values(allBlocks)
+        .filter(b => !routing.includes(b._id))
+        .sort((a,b) => (a['@position']||0) - (b['@position']||0));
+
+    const hasParallel = topology && topology.length > 1;
+    if (!hasParallel) {
+        return { type: 'serial', blocks: effects };
+    }
+
+    const joinPos  = allBlocks.join  ? (allBlocks.join['@position']  || 8) : 8;
+    const splitPos = allBlocks.split ? (allBlocks.split['@position'] || 0) : 0;
+
+    const pathA = effects.filter(b => (b['@path']||0) === 0 && (b['@position']||0) > splitPos && (b['@position']||0) <= joinPos);
+    const pathB = effects.filter(b => (b['@path']||0) === 1);
+    const post  = effects.filter(b => (b['@path']||0) === 0 && (b['@position']||0) > joinPos);
+    const pre   = effects.filter(b => (b['@path']||0) === 0 && (b['@position']||0) <= splitPos);
+
+    return { type: 'parallel', pre, pathA, pathB, post };
+}
+
+// ================================================================
+// CHIP (signal chain visual block)
+// ================================================================
+
+let gPreset = null;
+
+function fsSummary(blockId, dspId) {
+    const fs = gPreset?.data?.tone?.footswitch;
+    if (!fs || !fs[dspId]) return null;
+    const b = fs[dspId][blockId];
+    if (!b) return null;
+    return b['@fs_customlabel'] || b['@fs_label'] || null;
+}
+
+function chip(block, dspId, clickable = true) {
+    const id     = block._id;
+    const model  = block['@model'] || '';
+    const info   = lookupModel(model);
+    const s      = catStyle(info.category);
+    const on     = block['@enabled'] !== false;
+    const fsLbl  = fsSummary(id, dspId);
+    const dim    = on ? '' : 'opacity-40';
+    const click  = clickable ? `onclick="scrollToBlock('${dspId}','${id}')" style="cursor:pointer"` : '';
+
+    return `<div class="block-chip flex-shrink-0 ${dim}" ${click} title="${info.name} — ${model}">
+        <div class="${s.bg} border ${s.border} rounded-xl p-2.5 text-center w-24 select-none">
+            <div class="w-2 h-2 rounded-full ${on ? s.dot : 'bg-gray-700'} mx-auto mb-1.5"></div>
+            <div class="text-xs font-semibold ${s.text} leading-tight">${info.name}</div>
+            <div class="text-xs text-gray-600 mt-0.5">${info.category}</div>
+            ${fsLbl ? `<div class="text-xs text-gray-500 mt-0.5 truncate" title="Footswitch: ${fsLbl}">⚡ ${fsLbl}</div>` : ''}
+        </div>
+    </div>`;
+}
+
+function ioChip(label) {
+    return `<div class="flex-shrink-0 self-center">
+        <div class="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-500 text-center whitespace-nowrap">${label}</div>
+    </div>`;
+}
+
+function arrow() {
+    return `<div class="chain-arrow self-center flex-shrink-0">
+        <div class="chain-line"></div><div class="chain-arrowhead"></div>
+    </div>`;
+}
+
+function emptyPath() {
+    return `<div class="flex-shrink-0 self-center border border-dashed border-gray-800 rounded-lg px-4 py-2 text-xs text-gray-700">— empty —</div>`;
+}
+
+function renderChain(dspId, dspData, topology, label) {
+    const chain = buildChain(dspData, topology);
+
+    let inner = '';
+    if (chain.type === 'serial') {
+        const items = [ioChip('Input')];
+        for (const b of chain.blocks) { items.push(arrow(), chip(b, dspId)); }
+        items.push(arrow(), ioChip('Output'));
+        inner = `<div class="flex items-stretch gap-0">${items.join('')}</div>`;
+    } else {
+        // Build pre section
+        const preItems = [ioChip('Input')];
+        for (const b of chain.pre) { preItems.push(arrow(), chip(b, dspId)); }
+
+        // Build post section
+        const postItems = [];
+        for (const b of chain.post) { postItems.push(chip(b, dspId), arrow()); }
+        postItems.push(ioChip('Output'));
+
+        // Path A
+        const aItems = [];
+        if (chain.pathA.length === 0) { aItems.push(emptyPath()); }
+        else { chain.pathA.forEach((b,i) => { if(i>0) aItems.push(arrow()); aItems.push(chip(b,dspId)); }); }
+
+        // Path B
+        const bItems = [];
+        if (chain.pathB.length === 0) { bItems.push(emptyPath()); }
+        else { chain.pathB.forEach((b,i) => { if(i>0) bItems.push(arrow()); bItems.push(chip(b,dspId)); }); }
+
+        inner = `
+        <div class="flex items-center gap-0">
+            ${preItems.join('')}
+            ${arrow()}
+            <!-- Split bracket -->
+            <div class="flex-shrink-0 flex self-stretch" style="width:12px">
+                <div style="width:12px;display:flex;flex-direction:column">
+                    <div class="split-bracket-top flex-1"></div>
+                    <div class="split-bracket-bot flex-1"></div>
+                </div>
+            </div>
+            <!-- Parallel paths -->
+            <div class="flex flex-col gap-3 flex-shrink-0">
+                <div class="flex items-center gap-0">
+                    <div class="path-line"></div>
+                    <span class="text-xs text-gray-600 mr-2 flex-shrink-0">A</span>
+                    ${aItems.join('')}
+                    <div class="path-line"></div>
+                </div>
+                <div class="flex items-center gap-0">
+                    <div class="path-line"></div>
+                    <span class="text-xs text-gray-600 mr-2 flex-shrink-0">B</span>
+                    ${bItems.join('')}
+                    <div class="path-line"></div>
+                </div>
+            </div>
+            <!-- Join bracket -->
+            <div class="flex-shrink-0 flex self-stretch" style="width:12px">
+                <div style="width:12px;display:flex;flex-direction:column">
+                    <div class="join-bracket-top flex-1"></div>
+                    <div class="join-bracket-bot flex-1"></div>
+                </div>
+            </div>
+            ${arrow()}
+            ${postItems.join('')}
+        </div>`;
+    }
+
+    return `<div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="text-sm font-bold text-gray-300 uppercase tracking-wider">${label}</span>
+            <span class="text-xs text-gray-600 font-mono">topology: ${topology||'A'}</span>
+        </div>
+        <div class="overflow-x-auto pb-2">
+            ${inner}
+        </div>
+    </div>`;
+}
+
+// ================================================================
+// BLOCK DETAIL CARD
+// ================================================================
+
+function detailCard(blockId, blockData, dspId) {
+    const model = blockData['@model'] || '';
+    if (model.startsWith('@')) return '';
+    const skip = ['inputA','inputB','split','join','outputA','outputB','cab0'];
+    if (skip.includes(blockId)) return '';
+
+    const info = lookupModel(model);
+    const s    = catStyle(info.category);
+    const on   = blockData['@enabled'] !== false;
+
+    // Parameters (non-@ keys)
+    const params = Object.entries(blockData).filter(([k]) => !k.startsWith('@') && k !== '_id');
+
+    // Footswitch
+    const fsData = gPreset?.data?.tone?.footswitch?.[dspId]?.[blockId];
+    let fsHtml = '';
+    if (fsData) {
+        const fsLabel = fsData['@fs_customlabel'] || fsData['@fs_label'] || '';
+        const fsIdx   = fsData['@fs_index'] !== undefined ? `FS ${fsData['@fs_index']+1}` : '';
+        const fsMom   = fsData['@fs_momentary'] ? ' (Momentary)' : '';
+        fsHtml = `<div class="mt-3 pt-3 border-t border-gray-800">
+            <div class="text-xs text-gray-600 mb-1">Footswitch</div>
+            <span class="text-sm text-gray-300">⚡ ${fsIdx} — ${fsLabel}${fsMom}</span>
+        </div>`;
+    }
+
+    const infoHtml = info.info ? `<div class="text-xs text-gray-600 italic">${info.info}</div>` : '';
+
+    return `<div id="detail-${dspId}-${blockId}"
+                 class="${s.bg} border ${s.border} rounded-2xl p-5 ${on ? '' : 'opacity-60'}">
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <div class="w-3 h-3 rounded-full flex-shrink-0 ${on ? s.dot : 'bg-gray-700'}"></div>
+                    <span class="text-base font-bold text-white">${info.name}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full ${s.badge} ${s.text}">${info.category}</span>
+                </div>
+                ${infoHtml}
+                <div class="text-xs text-gray-700 mt-0.5 font-mono">${model}</div>
+            </div>
+            <div class="text-right flex-shrink-0">
+                <div class="text-xs font-bold px-2 py-1 rounded-lg ${on ? 'bg-green-900 text-green-400' : 'bg-gray-800 text-gray-600'}">${on ? 'ON' : 'OFF'}</div>
+                <div class="text-xs text-gray-700 mt-1">${dspId.toUpperCase()} · ${blockId}</div>
+            </div>
+        </div>
+        ${params.length > 0 ? `
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            ${params.map(([k,v]) => {
+                const n = fmtParamName(k);
+                if (!n) return '';
+                return `<div class="bg-black/30 rounded-lg px-3 py-2">
+                    <div class="text-xs text-gray-600">${n}</div>
+                    <div class="text-sm font-semibold text-gray-200 mt-0.5">${fmtParamValue(k, v)}</div>
+                </div>`;
+            }).join('')}
+        </div>` : ''}
+        ${fsHtml}
+    </div>`;
+}
+
+// ================================================================
+// SNAPSHOTS
+// ================================================================
+
+function renderSnapshots(tone) {
+    const snaps = [];
+    for (let i = 0; i <= 7; i++) {
+        const s = tone[`snapshot${i}`];
+        if (s && s['@valid']) snaps.push({ idx: i, ...s });
+    }
+    if (!snaps.length) return '';
+
+    const cur = tone.global?.['@current_snapshot'] ?? 0;
+
+    return `<div>
+        <h2 class="text-xl font-bold text-white mb-4">Snapshots</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        ${snaps.map(snap => {
+            const isCur = snap.idx === cur;
+            const name  = snap['@name'] || `Snapshot ${snap.idx+1}`;
+            const tempo = snap['@tempo'] || 120;
+            let on=0, total=0;
+            for (const dBlocks of Object.values(snap.blocks||{}))
+                for (const en of Object.values(dBlocks)) { total++; if(en) on++; }
+            return `<div class="rounded-xl p-3 border ${isCur ? 'bg-amber-950 border-amber-600':'bg-gray-900 border-gray-800'}">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-black w-4 text-center rounded ${isCur?'text-amber-400':'text-gray-600'}">${snap.idx+1}</span>
+                    <span class="text-sm font-semibold truncate ${isCur?'text-white':'text-gray-400'}">${name}</span>
+                </div>
+                <div class="text-xs text-gray-600">${tempo} BPM · ${on}/${total} blocks on</div>
+                ${isCur ? '<div class="text-xs text-amber-500 mt-1">▶ Active</div>' : ''}
+            </div>`;
+        }).join('')}
+        </div>
+    </div>`;
+}
+
+// ================================================================
+// FOOTSWITCH OVERVIEW
+// ================================================================
+
+function renderFootswitches(tone) {
+    const fs = tone.footswitch;
+    if (!fs) return '';
+    const all = [];
+    for (const [dspId, dspBlocks] of Object.entries(fs)) {
+        for (const [blockId, b] of Object.entries(dspBlocks)) {
+            if (!b['@fs_primary'] && !b['@fs_label']) continue;
+            const label = b['@fs_customlabel'] || b['@fs_label'] || blockId;
+            const idx   = b['@fs_index'];
+            const en    = b['@fs_enabled'];
+            all.push({ idx, label, en, dspId, blockId, momentary: b['@fs_momentary'] });
+        }
+    }
+    if (!all.length) return '';
+    // Deduplicate by idx+label (same footswitch can appear for two linked blocks)
+    const seen = new Set();
+    const unique = all.filter(f => {
+        const k = `${f.idx}-${f.label}`;
+        if (seen.has(k)) return false;
+        seen.add(k); return true;
+    });
+    unique.sort((a,b) => a.idx - b.idx);
+
+    return `<div>
+        <h2 class="text-xl font-bold text-white mb-4">Footswitches</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        ${unique.map(f => `
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 cursor-pointer hover:border-gray-600 transition-colors"
+                 onclick="scrollToBlock('${f.dspId}','${f.blockId}')">
+                <div class="text-xs text-gray-600 mb-1">FS ${f.idx !== undefined ? f.idx+1 : '?'}</div>
+                <div class="text-sm font-semibold text-gray-200">${f.label}</div>
+                <div class="flex gap-2 mt-1">
+                    <span class="text-xs ${f.en ? 'text-green-500':'text-gray-600'}">${f.en ? 'On':'Off'}</span>
+                    ${f.momentary ? '<span class="text-xs text-gray-600">Momentary</span>' : ''}
+                </div>
+            </div>`).join('')}
+        </div>
+    </div>`;
+}
+
+// ================================================================
+// SCROLL TO BLOCK
+// ================================================================
+
+function scrollToBlock(dspId, blockId) {
+    const el = document.getElementById(`detail-${dspId}-${blockId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior:'smooth', block:'center' });
+    el.classList.add('highlight-pulse');
+    setTimeout(() => el.classList.remove('highlight-pulse'), 2000);
+}
+
+// ================================================================
+// MAIN RENDER
+// ================================================================
+
+function renderPreset(data) {
+    gPreset = data;
+    const tone = data.data?.tone || {};
+    const meta = data.data?.meta || {};
+    const globalTone = tone.global || {};
+    const modDate = meta.modifieddate
+        ? new Date(meta.modifieddate * 1000).toLocaleDateString(undefined, {year:'numeric',month:'short',day:'numeric'})
+        : null;
+
+    // ── Meta header
+    const curSnap = globalTone['@current_snapshot'] ?? 0;
+    const snapName = tone[`snapshot${curSnap}`]?.['@name'] || `Snapshot ${curSnap+1}`;
+    document.getElementById('preset-meta').innerHTML = `
+        <div class="flex flex-wrap gap-4 items-start justify-between">
+            <div>
+                <h1 class="text-3xl font-black text-white">${meta.name || 'Unnamed Preset'}</h1>
+                <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-gray-400">
+                    ${meta.author ? `<span>by <span class="text-gray-200">${meta.author}</span></span>` : ''}
+                    ${meta.band   ? `<span>· ${meta.band}</span>` : ''}
+                    ${modDate     ? `<span class="text-gray-600">Last modified: ${modDate}</span>` : ''}
+                    ${meta.application ? `<span class="text-gray-600">Via: ${meta.application}</span>` : ''}
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-gray-600">Active Snapshot</div>
+                <div class="text-lg font-bold text-amber-400">${curSnap+1} — ${snapName}</div>
+                <div class="text-xs text-gray-600">${globalTone['@tempo']||120} BPM</div>
+            </div>
+        </div>`;
+
+    // ── Signal chains
+    const topo0 = globalTone['@topology0'] || 'A';
+    const topo1 = globalTone['@topology1'] || 'A';
+    let chainsHtml = '<h2 class="text-xl font-bold text-white mb-4">Signal Chain</h2><div class="space-y-4">';
+    if (tone.dsp0) chainsHtml += renderChain('dsp0', tone.dsp0, topo0, 'DSP 1');
+    if (tone.dsp1) chainsHtml += renderChain('dsp1', tone.dsp1, topo1, 'DSP 2');
+    chainsHtml += '</div>';
+    document.getElementById('signal-chains').innerHTML = chainsHtml;
+
+    // ── Snapshots
+    document.getElementById('snapshots-section').innerHTML = renderSnapshots(tone);
+
+    // ── Footswitches
+    document.getElementById('footswitches-section').innerHTML = renderFootswitches(tone);
+
+    // ── Block details
+    let detailsHtml = '<h2 class="text-xl font-bold text-white mb-4">Block Details</h2>';
+    for (const dspId of ['dsp0','dsp1']) {
+        if (!tone[dspId]) continue;
+        const dspLabel = dspId === 'dsp0' ? 'DSP 1' : 'DSP 2';
+        detailsHtml += `<div class="text-xs font-bold uppercase tracking-widest text-gray-600 mt-8 mb-3">${dspLabel}</div>`;
+        const blocks = Object.entries(tone[dspId])
+            .filter(([,v]) => v && typeof v === 'object' && !Array.isArray(v))
+            .filter(([k]) => !['inputA','inputB','split','join','outputA','outputB','cab0'].includes(k))
+            .sort(([,a],[,b]) => (a['@position']||0) - (b['@position']||0));
+        detailsHtml += '<div class="space-y-3">';
+        for (const [blockId, blockData] of blocks) {
+            const card = detailCard(blockId, blockData, dspId);
+            if (card) detailsHtml += card;
+        }
+        detailsHtml += '</div>';
+    }
+    document.getElementById('block-details').innerHTML = detailsHtml;
+
+    // ── Show / hide sections
+    document.getElementById('upload-zone').classList.add('hidden');
+    document.getElementById('preset-display').classList.remove('hidden');
+    document.getElementById('btn-new').classList.remove('hidden');
+}
+
+// ================================================================
+// FILE LOADING
+// ================================================================
+
+function loadFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset — missing L6Preset schema tag.');
+            renderPreset(data);
+        } catch(err) {
+            showErr(err.message || 'Could not parse the file.');
+        }
+    };
+    reader.onerror = () => showErr('Failed to read file.');
+    reader.readAsText(file);
+}
+
+function showErr(msg) {
+    const el = document.getElementById('upload-error');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+}
+
+// ── File input
+document.getElementById('file-input').addEventListener('change', e => loadFile(e.target.files[0]));
+
+// ── Drag and drop
+const dropArea = document.getElementById('drop-area');
+dropArea.addEventListener('dragover',  e => { e.preventDefault(); dropArea.classList.add('drag-over'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag-over'));
+dropArea.addEventListener('drop', e => {
+    e.preventDefault();
+    dropArea.classList.remove('drag-over');
+    loadFile(e.dataTransfer.files[0]);
+});
+
+// ── "Load new preset" button
+document.getElementById('btn-new').addEventListener('click', () => {
+    document.getElementById('upload-zone').classList.remove('hidden');
+    document.getElementById('preset-display').classList.add('hidden');
+    document.getElementById('btn-new').classList.add('hidden');
+    document.getElementById('upload-error').classList.add('hidden');
+    document.getElementById('file-input').value = '';
+    gPreset = null;
+});
+</script>
+</body>
+</html>
