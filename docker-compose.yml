@@ -1,7 +1,6 @@
 services:
   helix-viewer:
-    build: .
-    image: helix-viewer:latest
+    image: ghcr.io/adman234/helix-viewer:latest
     container_name: helix-viewer
     ports:
       - "7860:80"
