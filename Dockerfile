@@ -3,7 +3,6 @@ FROM nginx:alpine
 LABEL description="Line 6 Helix Preset Visualizer"
 
 COPY html/ /usr/share/nginx/html/
-COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

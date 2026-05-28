@@ -5,15 +5,3 @@ services:
     ports:
       - "7860:80"
     restart: unless-stopped
-    depends_on:
-      - backend
-
-  backend:
-    build: ./backend
-    container_name: helix-backend
-    volumes:
-      - ./uploads:/uploads
-    restart: unless-stopped
-    environment:
-      - UPLOAD_DIR=/uploads
-      - PORT=3000

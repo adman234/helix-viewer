@@ -53,7 +53,7 @@
         </div>
         <div class="flex items-center gap-2">
             <button id="btn-new"
-                class="hidden text-xs text-gray-400 border border-gray-600 hover:border-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition-colors">
+                class="hidden text-sm text-white bg-gray-700 border border-gray-500 hover:bg-gray-600 hover:border-gray-400 px-4 py-1.5 rounded-lg transition-colors font-medium">
                 ← New Preset
             </button>
             <a href="https://ko-fi.com/adman234" target="_blank" rel="noopener"
@@ -115,8 +115,7 @@
         <p class="text-sm text-gray-300 mb-2">
             A free, open-source visualizer for Line 6 Helix / HX Stomp / HX Effects preset files.
             Upload a <code class="text-amber-400">.hlx</code> file to explore the signal chain,
-            block parameters, snapshots, and footswitch assignments. Runs entirely in your browser -
-            no files are uploaded to any server.
+            block parameters, snapshots, and footswitch assignments. Runs entirely in your browser.
         </p>
         <p class="text-xs text-gray-600 mb-5">
             Built with Claude Code (AI-assisted). May contain bugs or inaccuracies - please report issues on GitHub.
@@ -803,7 +802,13 @@ function detailCard(blockId, blockData, dspId) {
     const cardOpacity = removed ? 'opacity-40' : (on ? '' : 'opacity-60');
     const nameClass   = removed ? 'line-through text-gray-500' : 'text-white';
 
-    const removeBtn = removed
+    const dspRemoved = gRemovedDSPs.has(dspId);
+    const removeBtn = dspRemoved
+        ? `<span class="text-xs px-2 py-1 rounded-lg bg-gray-900 text-gray-600 border border-gray-800 cursor-default"
+                title="Restore the DSP first to modify individual blocks">
+                Restore DSP to restore this block
+            </span>`
+        : removed
         ? `<button onclick="toggleRemoveBlock('${dspId}','${blockId}')"
                 class="text-xs px-2 py-1 rounded-lg bg-gray-900 text-amber-500 hover:bg-amber-950 hover:text-amber-400 transition-colors border border-amber-900">
                 Undo Remove
@@ -1117,15 +1122,16 @@ function renderIRSlots(data) {
         }
     }
 
-    return `<details class="group">
-        <summary class="cursor-pointer list-none flex items-center gap-2 mb-0">
+    return `<div>
+        <details class="group">
+        <summary class="cursor-pointer list-none flex items-center gap-2 mb-1">
             <h2 class="text-xl font-bold text-white">IR Slots</h2>
             <span class="text-xs text-gray-600">(${used.length} used)</span>
             <span class="text-gray-600 text-sm group-open:hidden">+ show</span>
             <span class="text-gray-600 text-sm hidden group-open:inline">- hide</span>
         </summary>
-        <div class="mt-3">
-        <p class="text-xs text-gray-600 mb-3">Impulse Response UUIDs loaded in this preset. You'll need these if transferring the preset to a new device.</p>
+        <p class="text-xs text-gray-600 mt-1 mb-3">Impulse Response UUIDs loaded in this preset. You'll need these if transferring the preset to a new device.</p>
+        <div class="mt-2">
         <div class="space-y-2">
         ${used.map(([slot, uuid]) => {
             const ref = slotToBlock[uuid];
@@ -1138,7 +1144,8 @@ function renderIRSlots(data) {
         }).join('')}
         </div>
         </div>
-    </details>`;
+        </details>
+    </div>`;
 }
 
 // ================================================================
@@ -1346,10 +1353,6 @@ function loadFile(file) {
             const data = JSON.parse(e.target.result);
             if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset -missing L6Preset schema tag.');
             renderPreset(data);
-            // Silently upload to backend for persistent storage (fails gracefully if unavailable)
-            const fd = new FormData();
-            fd.append('file', file, file.name);
-            fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
         } catch(err) {
             showErr(err.message || 'Could not parse the file.');
         }
