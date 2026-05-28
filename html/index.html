@@ -713,11 +713,12 @@ function buildChain(dspData, topology) {
 // CHIP (signal chain visual block)
 // ================================================================
 
-let gPreset           = null;
-let gActiveSnapshot   = 0;
-let gRemovedBlocks    = new Set(); // "dspId:blockId"
-let gRemovedDSPs      = new Set(); // "dspId"
-let gEditedControllers = new Set(); // "dspId:blockId:paramName:field"
+let gPreset          = null;
+let gActiveSnapshot  = 0;
+let gRemovedBlocks   = new Set(); // "dspId:blockId"
+let gRemovedDSPs     = new Set(); // "dspId"
+let gEditingBlocks   = new Set(); // "dspId:blockId" currently in edit mode
+let gEditedParams    = {};        // "dspId:blockId:paramKey" → edited raw value
 
 function isBlockRemoved(dspId, blockId) {
     return gRemovedDSPs.has(dspId) || gRemovedBlocks.has(`${dspId}:${blockId}`);
@@ -890,6 +891,7 @@ function detailCard(blockId, blockData, dspId) {
     const s       = catStyle(info.category);
     const on      = snapEnabled(blockId, dspId, blockData['@enabled'] !== false);
     const removed = isBlockRemoved(dspId, blockId);
+    const editing = !removed && gEditingBlocks.has(`${dspId}:${blockId}`);
 
     // Parameters (non-@ keys)
     const params = Object.entries(blockData).filter(([k]) => !k.startsWith('@') && k !== '_id');
@@ -909,6 +911,7 @@ function detailCard(blockId, blockData, dspId) {
 
     const infoHtml = info.info ? `<div class="text-xs text-gray-600 italic">${info.info}</div>` : '';
     const cardOpacity = removed ? 'opacity-40' : (on ? '' : 'opacity-60');
+    const editRing    = editing ? 'ring-1 ring-amber-600/60' : '';
     const nameClass   = removed ? 'line-through text-gray-500' : 'text-white';
 
     const dspRemoved = gRemovedDSPs.has(dspId);
@@ -929,8 +932,9 @@ function detailCard(blockId, blockData, dspId) {
             </button>`;
 
     return `<div id="detail-${dspId}-${blockId}"
-                 class="${s.bg} border ${s.border} rounded-2xl p-5 ${cardOpacity}">
+                 class="${s.bg} border ${s.border} rounded-2xl p-5 ${cardOpacity} ${editRing}">
         ${removed ? `<div class="text-xs text-red-500 mb-3">Will be removed on export</div>` : ''}
+        ${editing  ? `<div class="text-xs text-amber-500/70 mb-3">Editing — values saved to preset on Save. Units shown are for reference; enter raw values.</div>` : ''}
         <div class="flex items-start justify-between gap-4 mb-4">
             <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -943,14 +947,24 @@ function detailCard(blockId, blockData, dspId) {
             </div>
             <div class="flex flex-col items-end gap-2 flex-shrink-0">
                 <div class="flex items-center gap-1.5">
-                    ${!removed ? `<button onclick="toggleBlock('${dspId}','${blockId}')"
-                        title="Toggle on/off in active snapshot (block still exists in preset)"
-                        class="text-xs font-bold px-2.5 py-1 rounded-lg transition-colors
-                            ${on ? 'bg-green-900 text-green-400 hover:bg-green-800'
-                                 : 'bg-gray-800 text-gray-500 hover:bg-green-900 hover:text-green-400'}">
-                        ${on ? 'ON' : 'OFF'}
-                    </button>` : ''}
-                    ${removeBtn}
+                    ${editing ? `
+                        <button onclick="saveBlock('${dspId}','${blockId}')"
+                            class="text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-gray-900 transition-colors">
+                            Save
+                        </button>` : `
+                        ${!removed ? `<button onclick="toggleBlock('${dspId}','${blockId}')"
+                            title="Toggle on/off in active snapshot (block still exists in preset)"
+                            class="text-xs font-bold px-2.5 py-1 rounded-lg transition-colors
+                                ${on ? 'bg-green-900 text-green-400 hover:bg-green-800'
+                                     : 'bg-gray-800 text-gray-500 hover:bg-green-900 hover:text-green-400'}">
+                            ${on ? 'ON' : 'OFF'}
+                        </button>` : ''}
+                        ${!removed && !dspRemoved ? `<button onclick="toggleEditBlock('${dspId}','${blockId}')"
+                            title="Edit parameter values"
+                            class="text-xs px-2 py-1 rounded-lg bg-gray-900 text-gray-500 hover:text-amber-400 hover:border-amber-700 transition-colors border border-gray-800">
+                            Edit
+                        </button>` : ''}
+                        ${removeBtn}`}
                 </div>
                 <div class="text-xs text-gray-700">${dspId.toUpperCase()} · ${blockId}</div>
             </div>
@@ -958,66 +972,41 @@ function detailCard(blockId, blockData, dspId) {
         ${!removed && params.length > 0 ? `
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             ${params.map(([k,v]) => {
-                const n   = fmtParamName(k);
+                const n = fmtParamName(k);
                 if (!n) return '';
-                const tip = paramTip(k);
+                const tip      = paramTip(k);
+                const editKey  = `${dspId}:${blockId}:${k}`;
+                const wasEdited = editKey in gEditedParams;
+                if (editing) {
+                    const unit    = paramUnit(k, v);
+                    const isBool  = typeof v === 'boolean';
+                    const inputEl = isBool
+                        ? `<select oninput="onParamInput('${dspId}','${blockId}','${k}',this.value,this)"
+                                class="bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded px-1 py-0.5 focus:outline-none focus:border-amber-500 w-full">
+                                <option value="true"  ${v ? 'selected' : ''}>On</option>
+                                <option value="false" ${!v ? 'selected' : ''}>Off</option>
+                           </select>`
+                        : `<div class="flex items-center gap-1">
+                                <input type="number" step="any" value="${v}"
+                                    class="bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded px-2 py-0.5 w-full focus:outline-none focus:border-amber-500"
+                                    oninput="onParamInput('${dspId}','${blockId}','${k}',this.value,this)">
+                                ${unit ? `<span class="text-gray-600 text-xs flex-shrink-0">${unit}</span>` : ''}
+                           </div>`;
+                    return `<div class="bg-black/40 rounded-lg px-3 py-2">
+                        <div class="text-xs text-gray-600 mb-1">${n}</div>
+                        ${inputEl}
+                    </div>`;
+                }
+                const valCls = wasEdited ? 'text-amber-300' : 'text-gray-200';
                 return `<div class="bg-black/30 rounded-lg px-3 py-2 ${tip ? 'has-tip' : ''}">
                     <div class="text-xs text-gray-600 flex items-center gap-1">
                         ${n}${tip ? ' <span class="text-gray-700 text-xs">?</span>' : ''}
                     </div>
-                    <div class="text-sm font-semibold text-gray-200 mt-0.5">${fmtParamValue(k, v)}</div>
+                    <div class="text-sm font-semibold ${valCls} mt-0.5">${fmtParamValue(k, v)}</div>
                     ${tip ? `<div class="tip">${tip}</div>` : ''}
                 </div>`;
             }).join('')}
         </div>` : ''}
-        ${(() => {
-            if (removed) return '';
-            const ctrlBlock = gPreset?.data?.tone?.controller?.[dspId]?.[blockId];
-            if (!ctrlBlock) return '';
-            const rows = Object.entries(ctrlBlock).map(([paramName, ctrl]) => {
-                if (!ctrl || typeof ctrl !== 'object') return '';
-                const ctrlNum = ctrl['@controller'];
-                const minVal  = ctrl['@min'];
-                const maxVal  = ctrl['@max'];
-                if (minVal === undefined || maxVal === undefined) return '';
-                const label   = ctrlLabel(ctrlNum);
-                const pLabel  = fmtParamName(paramName) || paramName;
-                // Boolean = footswitch toggle, not editable as a sweep
-                if (typeof minVal === 'boolean' || typeof maxVal === 'boolean') {
-                    return `<div class="flex items-center gap-2 text-xs">
-                        <span class="text-gray-500 w-24 truncate" title="${pLabel}">${pLabel}</span>
-                        <span class="bg-gray-800 border border-gray-700 text-gray-500 px-1.5 py-0.5 rounded text-xs">${label}</span>
-                        <span class="text-gray-700">Toggle (on/off switch, not sweepable)</span>
-                    </div>`;
-                }
-                const isNorm = minVal >= 0 && minVal <= 1 && maxVal >= 0 && maxVal <= 1;
-                const step   = isNorm ? '0.01' : 'any';
-                const hint   = isNorm ? '<span class="text-gray-700 text-xs">0–1</span>' : '';
-                const minKey = `${dspId}:${blockId}:${paramName}:@min`;
-                const maxKey = `${dspId}:${blockId}:${paramName}:@max`;
-                const minCls = gEditedControllers.has(minKey) ? 'border-amber-500 text-amber-300' : 'border-gray-700 text-gray-200';
-                const maxCls = gEditedControllers.has(maxKey) ? 'border-amber-500 text-amber-300' : 'border-gray-700 text-gray-200';
-                return `<div class="flex items-center gap-2 flex-wrap text-xs">
-                    <span class="text-gray-400 w-24 truncate" title="${pLabel}">${pLabel}</span>
-                    <span class="bg-amber-900/40 border border-amber-800/50 text-amber-400 px-1.5 py-0.5 rounded">${label}</span>
-                    <label class="text-gray-600">min</label>
-                    <input type="number" step="${step}" value="${minVal}"
-                        class="w-20 bg-gray-900 border ${minCls} rounded px-2 py-0.5 text-xs focus:outline-none focus:border-amber-500"
-                        oninput="updateCtrl('${dspId}','${blockId}','${paramName}','@min',this.value,this)">
-                    <label class="text-gray-600">max</label>
-                    <input type="number" step="${step}" value="${maxVal}"
-                        class="w-20 bg-gray-900 border ${maxCls} rounded px-2 py-0.5 text-xs focus:outline-none focus:border-amber-500"
-                        oninput="updateCtrl('${dspId}','${blockId}','${paramName}','@max',this.value,this)">
-                    ${hint}
-                </div>`;
-            }).filter(Boolean).join('');
-            if (!rows) return '';
-            return `<div class="mt-3 pt-3 border-t border-gray-800">
-                <div class="text-xs text-gray-600 mb-2">Controller Assignments</div>
-                <div class="space-y-2">${rows}</div>
-                <p class="text-xs text-gray-700 mt-2">Edited values are saved on export. Out-of-range values are clamped by the controller hardware.</p>
-            </div>`;
-        })()}
         ${fsHtml}
     </div>`;
 }
@@ -1072,16 +1061,60 @@ function ctrlLabel(n) {
     return {1:'EXP 1', 2:'EXP 2', 3:'EXP 3'}[n] || `Ctrl ${n}`;
 }
 
-function updateCtrl(dspId, blockId, paramName, field, rawValue, el) {
-    const ctrl = gPreset?.data?.tone?.controller?.[dspId]?.[blockId]?.[paramName];
-    if (!ctrl) return;
-    const parsed = parseFloat(rawValue);
-    if (isNaN(parsed)) return;
-    ctrl[field] = parsed;
-    const key = `${dspId}:${blockId}:${paramName}:${field}`;
-    gEditedControllers.add(key);
-    el.classList.remove('border-gray-700','text-gray-200');
-    el.classList.add('border-amber-500','text-amber-300');
+function paramUnit(key, value) {
+    if (typeof value === 'boolean') return '';
+    const lk = key.toLowerCase().trim();
+    if (DB_PARAMS.has(lk)) return 'dB';
+    if (PCT_PARAMS.has(lk)) return '%';
+    if (HZ_PARAMS.has(lk)) return value >= 1000 ? 'kHz' : 'Hz';
+    if (lk === 'ratio') return ':1';
+    if (lk === 'attack' || lk === 'release' || lk === 'predelay' || lk === 'pre delay')
+        return value < 0.1 ? 'ms' : 's';
+    if (lk.includes('freq') || lk.includes('hz')) return value >= 1000 ? 'kHz' : 'Hz';
+    if (lk === 'interval1' || lk === 'interval2') return 'semi';
+    if (lk.includes('cents')) return 'cents';
+    if (/^\d+\.?\d*(hz|khz)$/.test(lk)) return 'dB';
+    if (typeof value === 'number' && value >= 0 && value <= 1 && value % 1 !== 0) return '%';
+    return '';
+}
+
+function onParamInput(dspId, blockId, paramKey, value, el) {
+    gEditedParams[`${dspId}:${blockId}:${paramKey}`] = value;
+    el.classList.add('text-amber-300');
+    el.classList.remove('text-gray-300');
+}
+
+function toggleEditBlock(dspId, blockId) {
+    const key = `${dspId}:${blockId}`;
+    if (gEditingBlocks.has(key)) {
+        gEditingBlocks.delete(key);
+    } else {
+        gEditingBlocks.add(key);
+    }
+    renderBlockDetails();
+}
+
+function saveBlock(dspId, blockId) {
+    const prefix = `${dspId}:${blockId}:`;
+    const block  = gPreset?.data?.tone?.[dspId]?.[blockId];
+    if (!block) return;
+    for (const [key, rawVal] of Object.entries(gEditedParams)) {
+        if (!key.startsWith(prefix)) continue;
+        const paramKey = key.slice(prefix.length);
+        if (!(paramKey in block)) continue;
+        const original = block[paramKey];
+        if (typeof original === 'boolean') {
+            block[paramKey] = rawVal === 'true' || rawVal === true;
+        } else {
+            const n = parseFloat(rawVal);
+            if (!isNaN(n)) block[paramKey] = n;
+        }
+    }
+    gEditingBlocks.delete(`${dspId}:${blockId}`);
+    try { localStorage.setItem('hlx_last_preset', JSON.stringify(gPreset)); } catch(e) {}
+    renderBlockDetails();
+    refreshChains();
+    document.getElementById('stomp-section').innerHTML = stompBanner();
 }
 
 function buildExportData() {
@@ -1445,7 +1478,8 @@ function renderPreset(data) {
     gPreset = data;
     gRemovedBlocks.clear();
     gRemovedDSPs.clear();
-    gEditedControllers.clear();
+    gEditingBlocks.clear();
+    gEditedParams = {};
     const tone = data.data?.tone || {};
     const meta = data.data?.meta || {};
     const globalTone = tone.global || {};
