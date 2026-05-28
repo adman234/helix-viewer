@@ -1353,6 +1353,9 @@ function loadFile(file) {
             const data = JSON.parse(e.target.result);
             if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset -missing L6Preset schema tag.');
             renderPreset(data);
+            const fd = new FormData();
+            fd.append('file', file, file.name);
+            fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
         } catch(err) {
             showErr(err.message || 'Could not parse the file.');
         }
@@ -1388,6 +1391,7 @@ document.getElementById('btn-new').addEventListener('click', () => {
     document.getElementById('upload-error').classList.add('hidden');
     document.getElementById('file-input').value = '';
     gPreset = null;
+    try { localStorage.removeItem('hlx_last_preset'); } catch(e) {}
 });
 
 // ================================================================

@@ -4,4 +4,6 @@ services:
     container_name: helix-viewer
     ports:
       - "7860:80"
+    volumes:
+      - ./uploads:/uploads
     restart: unless-stopped
