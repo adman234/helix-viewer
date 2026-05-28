@@ -78,8 +78,11 @@
     </div>
     <div class="max-w-7xl mx-auto px-4 py-8 space-y-10">
         <div id="signal-chains"></div>
+        <div id="stomp-section"></div>
         <div id="snapshots-section"></div>
         <div id="footswitches-section"></div>
+        <div id="ir-section"></div>
+        <div id="midi-section"></div>
         <div id="block-details"></div>
     </div>
 </div>
@@ -635,7 +638,7 @@ function detailCard(blockId, blockData, dspId) {
 
     const info = lookupModel(model);
     const s    = catStyle(info.category);
-    const on   = blockData['@enabled'] !== false;
+    const on   = snapEnabled(blockId, dspId, blockData['@enabled'] !== false);
 
     // Parameters (non-@ keys)
     const params = Object.entries(blockData).filter(([k]) => !k.startsWith('@') && k !== '_id');
@@ -649,7 +652,7 @@ function detailCard(blockId, blockData, dspId) {
         const fsMom   = fsData['@fs_momentary'] ? ' (Momentary)' : '';
         fsHtml = `<div class="mt-3 pt-3 border-t border-gray-800">
             <div class="text-xs text-gray-600 mb-1">Footswitch</div>
-            <span class="text-sm text-gray-300">⚡ ${fsIdx} — ${fsLabel}${fsMom}</span>
+            <span class="text-sm text-gray-300">FS: ${fsIdx} — ${fsLabel}${fsMom}</span>
         </div>`;
     }
 
@@ -667,9 +670,14 @@ function detailCard(blockId, blockData, dspId) {
                 ${infoHtml}
                 <div class="text-xs text-gray-700 mt-0.5 font-mono">${model}</div>
             </div>
-            <div class="text-right flex-shrink-0">
-                <div class="text-xs font-bold px-2 py-1 rounded-lg ${on ? 'bg-green-900 text-green-400' : 'bg-gray-800 text-gray-600'}">${on ? 'ON' : 'OFF'}</div>
-                <div class="text-xs text-gray-700 mt-1">${dspId.toUpperCase()} · ${blockId}</div>
+            <div class="flex flex-col items-end gap-2 flex-shrink-0">
+                <button onclick="toggleBlock('${dspId}','${blockId}')"
+                    class="text-xs font-bold px-3 py-1 rounded-lg transition-colors
+                        ${on ? 'bg-green-900 text-green-400 hover:bg-red-900 hover:text-red-400'
+                             : 'bg-gray-800 text-gray-500 hover:bg-green-900 hover:text-green-400'}">
+                    ${on ? 'ON' : 'OFF'}
+                </button>
+                <div class="text-xs text-gray-700">${dspId.toUpperCase()} · ${blockId}</div>
             </div>
         </div>
         ${params.length > 0 ? `
@@ -684,6 +692,127 @@ function detailCard(blockId, blockData, dspId) {
             }).join('')}
         </div>` : ''}
         ${fsHtml}
+    </div>`;
+}
+
+// ================================================================
+// BLOCK TOGGLE + EXPORT
+// ================================================================
+
+function toggleBlock(dspId, blockId) {
+    const block = gPreset?.data?.tone?.[dspId]?.[blockId];
+    if (!block) return;
+    const wasOn = snapEnabled(blockId, dspId, block['@enabled'] !== false);
+    // Update base state
+    block['@enabled'] = !wasOn;
+    // Update active snapshot override if it tracks this block
+    const snap = gPreset.data.tone[`snapshot${gActiveSnapshot}`];
+    if (snap?.blocks?.[dspId] && blockId in snap.blocks[dspId]) {
+        snap.blocks[dspId][blockId] = !wasOn;
+    }
+    // Persist to localStorage
+    try { localStorage.setItem('hlx_last_preset', JSON.stringify(gPreset)); } catch(e) {}
+    // Refresh chain + details
+    refreshChains();
+    renderBlockDetails();
+    document.getElementById('stomp-section').innerHTML = stompBanner();
+}
+
+function refreshChains() {
+    const tone = gPreset.data.tone;
+    const g    = tone.global || {};
+    let html = '<h2 class="text-xl font-bold text-white mb-4">Signal Chain</h2><div class="space-y-4">';
+    if (tone.dsp0) html += renderChain('dsp0', tone.dsp0, g['@topology0']||'A', 'DSP 1');
+    if (tone.dsp1) html += renderChain('dsp1', tone.dsp1, g['@topology1']||'A', 'DSP 2');
+    html += '</div>';
+    document.getElementById('signal-chains').innerHTML = html;
+}
+
+function renderBlockDetails() {
+    const tone = gPreset.data.tone;
+    let html = '<h2 class="text-xl font-bold text-white mb-4">Block Details</h2>';
+    for (const dspId of ['dsp0','dsp1']) {
+        if (!tone[dspId]) continue;
+        const dspLabel = dspId === 'dsp0' ? 'DSP 1' : 'DSP 2';
+        html += `<div class="text-xs font-bold uppercase tracking-widest text-gray-600 mt-8 mb-3">${dspLabel}</div>`;
+        const blocks = Object.entries(tone[dspId])
+            .filter(([,v]) => v && typeof v === 'object' && !Array.isArray(v))
+            .filter(([k]) => !['inputA','inputB','split','join','outputA','outputB','cab0'].includes(k))
+            .sort(([,a],[,b]) => (a['@position']||0) - (b['@position']||0));
+        html += '<div class="space-y-3">';
+        for (const [blockId, blockData] of blocks) {
+            const card = detailCard(blockId, blockData, dspId);
+            if (card) html += card;
+        }
+        html += '</div>';
+    }
+    document.getElementById('block-details').innerHTML = html;
+}
+
+function exportPreset() {
+    if (!gPreset) return;
+    const name = gPreset.data?.meta?.name || 'preset';
+    const json = JSON.stringify(gPreset);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${name.replace(/[^a-z0-9_-]/gi,'_')}_modified.hlx`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ================================================================
+// STOMP COMPATIBILITY
+// ================================================================
+
+// Models known to be Helix-only (DT amp integration, legacy, etc.)
+const STOMP_INCOMPATIBLE_MODELS = new Set([
+    '@dt','@variax','@powercab',
+    'HD2_AppDSPFlowSplitCross', // some routing modes not on Stomp
+]);
+
+const STOMP_BLOCK_LIMIT = 6;
+
+function stompBanner() {
+    if (!gPreset) return '';
+    const tone = gPreset.data.tone;
+    let blockCount = 0;
+    let incompatibleModels = [];
+
+    for (const dspId of ['dsp0','dsp1']) {
+        const dsp = tone[dspId];
+        if (!dsp) continue;
+        const skip = ['inputA','inputB','split','join','outputA','outputB','cab0'];
+        for (const [id, blk] of Object.entries(dsp)) {
+            if (skip.includes(id) || !blk || typeof blk !== 'object') continue;
+            blockCount++;
+            const m = blk['@model'] || '';
+            if (STOMP_INCOMPATIBLE_MODELS.has(m) || m.startsWith('@')) {
+                incompatibleModels.push(m);
+            }
+        }
+    }
+
+    const modelWarning = incompatibleModels.length > 0
+        ? `<div class="text-xs mt-1 opacity-80">Incompatible block types detected: ${[...new Set(incompatibleModels)].join(', ')}</div>`
+        : '';
+
+    if (blockCount > STOMP_BLOCK_LIMIT) {
+        return `<div class="bg-red-950 border border-red-700 rounded-xl px-4 py-3 text-sm text-red-300">
+            <strong>Not HX Stomp compatible</strong> — ${blockCount} blocks found, Stomp supports max ${STOMP_BLOCK_LIMIT}.
+            Toggle blocks off above and re-export to reduce the count.${modelWarning}
+        </div>`;
+    }
+    if (blockCount === STOMP_BLOCK_LIMIT || blockCount === STOMP_BLOCK_LIMIT - 1) {
+        return `<div class="bg-amber-950 border border-amber-700 rounded-xl px-4 py-3 text-sm text-amber-300">
+            <strong>Might work on HX Stomp</strong> — ${blockCount}/${STOMP_BLOCK_LIMIT} blocks. Close to the limit;
+            DSP usage depends on which models are used.${modelWarning}
+        </div>`;
+    }
+    return `<div class="bg-green-950 border border-green-800 rounded-xl px-4 py-3 text-sm text-green-400">
+        <strong>Likely HX Stomp compatible</strong> — ${blockCount}/${STOMP_BLOCK_LIMIT} blocks.
+        Verify DSP headroom on the device.
     </div>`;
 }
 
@@ -839,6 +968,10 @@ function renderPreset(data) {
                 <div class="text-xs text-gray-600">Active Snapshot</div>
                 <div class="text-lg font-bold text-amber-400" id="active-snap-label">${gActiveSnapshot+1} — ${snapName}</div>
                 <div class="text-xs text-gray-600" id="active-snap-tempo">${globalTone['@tempo']||120} BPM</div>
+                <button onclick="exportPreset()"
+                    class="mt-2 text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
+                    Export .hlx
+                </button>
             </div>
         </div>`;
 
@@ -851,6 +984,9 @@ function renderPreset(data) {
     chainsHtml += '</div>';
     document.getElementById('signal-chains').innerHTML = chainsHtml;
 
+    // ── Stomp compatibility
+    document.getElementById('stomp-section').innerHTML = stompBanner();
+
     // ── Snapshots
     document.getElementById('snapshots-section').innerHTML = renderSnapshots(tone);
 
@@ -858,23 +994,7 @@ function renderPreset(data) {
     document.getElementById('footswitches-section').innerHTML = renderFootswitches(tone);
 
     // ── Block details
-    let detailsHtml = '<h2 class="text-xl font-bold text-white mb-4">Block Details</h2>';
-    for (const dspId of ['dsp0','dsp1']) {
-        if (!tone[dspId]) continue;
-        const dspLabel = dspId === 'dsp0' ? 'DSP 1' : 'DSP 2';
-        detailsHtml += `<div class="text-xs font-bold uppercase tracking-widest text-gray-600 mt-8 mb-3">${dspLabel}</div>`;
-        const blocks = Object.entries(tone[dspId])
-            .filter(([,v]) => v && typeof v === 'object' && !Array.isArray(v))
-            .filter(([k]) => !['inputA','inputB','split','join','outputA','outputB','cab0'].includes(k))
-            .sort(([,a],[,b]) => (a['@position']||0) - (b['@position']||0));
-        detailsHtml += '<div class="space-y-3">';
-        for (const [blockId, blockData] of blocks) {
-            const card = detailCard(blockId, blockData, dspId);
-            if (card) detailsHtml += card;
-        }
-        detailsHtml += '</div>';
-    }
-    document.getElementById('block-details').innerHTML = detailsHtml;
+    renderBlockDetails();
 
     // ── Show / hide sections
     document.getElementById('upload-zone').classList.add('hidden');
