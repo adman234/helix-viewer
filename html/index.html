@@ -8,6 +8,22 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #0a0a0f; }
+        /* Tooltips */
+        .has-tip { position:relative; }
+        .has-tip:hover .tip { display:block; }
+        .tip { display:none; position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
+               background:#1f2937; border:1px solid #374151; color:#d1d5db; font-size:11px; line-height:1.4;
+               padding:6px 10px; border-radius:8px; width:200px; z-index:99; pointer-events:none;
+               white-space:normal; text-align:left; }
+        .tip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+                      border:5px solid transparent; border-top-color:#374151; }
+        /* Print */
+        @media print {
+            header, #upload-zone, #btn-new, #btn-about, button, .no-print { display:none !important; }
+            body { background:white !important; color:black !important; }
+            .block-chip div, [class*="bg-"] { background:white !important; border-color:#ccc !important; color:black !important; }
+            #preset-display { display:block !important; }
+        }
         .drag-over { border-color: #f59e0b !important; background: rgba(245,158,11,0.08) !important; }
         .chain-arrow { width:20px; flex-shrink:0; display:flex; align-items:center; }
         .chain-line { height:2px; background:#374151; flex:1; }
@@ -358,6 +374,102 @@ const CAT_STYLE = {
 };
 
 // ================================================================
+// PARAMETER TOOLTIPS
+// Key = lowercase param name (or param+model prefix)
+// ================================================================
+const PARAM_TIPS = {
+    // Universal
+    'mix':        'Wet/dry blend. 0% = fully dry, 100% = fully wet.',
+    'level':      'Output volume of this block in dB.',
+    'gain':       'Input gain in dB.',
+    'rate':       'Modulation speed — how fast the effect cycles.',
+    'depth':      'Modulation intensity — how pronounced the effect is.',
+    'tone':       'Tonal brightness or color of the effect.',
+    'decay':      'How long the effect (reverb tail, sustain) fades out.',
+    'pre delay':  'Silent gap before the reverb or delay effect starts.',
+    'predelay':   'Silent gap before the reverb or delay effect starts.',
+    'low cut':    'High-pass filter — cuts frequencies below this point.',
+    'high cut':   'Low-pass filter — cuts frequencies above this point.',
+    'lowcut':     'High-pass filter — cuts frequencies below this point.',
+    'highcut':    'Low-pass filter — cuts frequencies above this point.',
+    'lowcut':     'High-pass filter — cuts frequencies below this point.',
+    'hicut':      'Low-pass filter — cuts frequencies above this point.',
+    'spread':     'Stereo width. Higher values push the effect wider in the stereo field.',
+    'diffusion':  'How scattered reverb reflections are. Higher = smoother, less distinct.',
+    'damping':    'High-frequency absorption in the reverb tail — simulates softer room surfaces.',
+    'distance':   'Virtual microphone distance from the cabinet.',
+    'er level':   'Early Reflections level — the first bounces before the reverb tail.',
+    'erlevel':    'Early Reflections level — the first bounces before the reverb tail.',
+
+    // Compressor
+    'attack':     'How quickly the compressor clamps down after the signal exceeds the threshold.',
+    'release':    'How quickly the compressor lets go after the signal drops below the threshold.',
+    'ratio':      'Compression ratio — e.g. 4:1 means 4dB in = 1dB out above the threshold.',
+    'threshold':  'Level at which compression begins. Signals above this get compressed.',
+    'lo thresh':  'Threshold for the low-frequency compression band.',
+    'hi thresh':  'Threshold for the high-frequency compression band.',
+    'mid thresh': 'Threshold for the mid-frequency compression band.',
+    'lo gain':    'Make-up gain for the low frequency band after compression.',
+    'hi gain':    'Make-up gain for the high frequency band after compression.',
+    'mid gain':   'Make-up gain for the mid frequency band after compression.',
+    'lo x freq':  'Crossover point between the low and mid compression bands.',
+    'hi x freq':  'Crossover point between the mid and high compression bands.',
+    'headroom':   'Extra dynamic range before clipping. Higher = more natural, less squashed.',
+    'detector':   'Peak vs RMS detection. Peak reacts to transients; RMS averages the signal.',
+
+    // Amp
+    'drive':      'Preamp gain — how hard the amp input stage is pushed into saturation.',
+    'master':     'Master volume — power amp stage level after the preamp.',
+    'bass':       'Low-frequency EQ on the amp. Boosts or cuts low end.',
+    'mid':        'Midrange EQ on the amp.',
+    'treble':     'High-frequency EQ on the amp.',
+    'lowmid':     'Low-mid frequency EQ band.',
+    'highmid':    'High-mid frequency EQ band.',
+    'sag':        'Power supply sag simulation — how the amp "breathes" under heavy playing. Higher = more vintage feel.',
+    'hum':        'Simulates transformer hum and power supply noise — adds vintage character.',
+    'ripple':     'AC ripple in the power supply simulation. Affects the amp\'s feel under load.',
+    'bias':       'Tube bias — affects where in the tube\'s operating range the amp runs. Affects headroom and breakup character.',
+    'biasx':      'Bias excursion — how much the bias shifts dynamically with signal level.',
+    'chvol':      'Channel volume — sets the overall output of this amp channel.',
+
+    // Pitch
+    'interval1':  'Pitch shift amount in semitones for voice 1. Negative = down, positive = up.',
+    'interval2':  'Pitch shift amount in semitones for voice 2.',
+    'cents1':     'Fine-tune pitch shift in cents (1/100th of a semitone) for voice 1.',
+    'cents2':     'Fine-tune pitch shift in cents for voice 2.',
+    'levelvoice1':'Output volume of the pitch-shifted voice 1.',
+    'levelvoice2':'Output volume of the pitch-shifted voice 2.',
+    'pandry':     'Pan position of the dry (unshifted) signal.',
+    'panvoice1':  'Pan position of pitch-shifted voice 1.',
+    'time1':      'Pre-delay on the pitch shifted voice — tiny delay before the shift is heard.',
+
+    // Delay
+    'feedback':   'Regeneration — how many repeats you hear. Higher = more repeats, approaching infinite at 100%.',
+    'tempo sync': 'When on, delay time follows the global BPM tempo.',
+
+    // Reverb
+    'bass freq':  'Frequency below which bass boost is applied to the reverb tail.',
+    'bass boost': 'Amount of low-frequency boost added to the reverb tail.',
+
+    // Filter / Wah
+    'pedal':      'Expression pedal position (0% = heel, 100% = toe).',
+    'filter':     'Filter cutoff frequency or resonance point.',
+    'wave':       'Waveform shape driving the modulation (sine, square, ramp, etc.).',
+
+    // Volume
+    'volume taper': 'Logarithmic (natural) vs linear volume taper for the pedal sweep.',
+
+    // Cabinet
+    'early reflections': 'Level of early reflections — the first echo bounces off the cabinet/room walls.',
+    'mic':        'Microphone type used to capture the cabinet.',
+};
+
+function paramTip(key) {
+    const lk = key.toLowerCase().trim();
+    return PARAM_TIPS[lk] || null;
+}
+
+// ================================================================
 // PARAMETER FORMATTING
 // ================================================================
 
@@ -683,11 +795,15 @@ function detailCard(blockId, blockData, dspId) {
         ${params.length > 0 ? `
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             ${params.map(([k,v]) => {
-                const n = fmtParamName(k);
+                const n   = fmtParamName(k);
                 if (!n) return '';
-                return `<div class="bg-black/30 rounded-lg px-3 py-2">
-                    <div class="text-xs text-gray-600">${n}</div>
+                const tip = paramTip(k);
+                return `<div class="bg-black/30 rounded-lg px-3 py-2 ${tip ? 'has-tip' : ''}">
+                    <div class="text-xs text-gray-600 flex items-center gap-1">
+                        ${n}${tip ? ' <span class="text-gray-700 text-xs">?</span>' : ''}
+                    </div>
                     <div class="text-sm font-semibold text-gray-200 mt-0.5">${fmtParamValue(k, v)}</div>
+                    ${tip ? `<div class="tip">${tip}</div>` : ''}
                 </div>`;
             }).join('')}
         </div>` : ''}
@@ -877,6 +993,99 @@ function switchSnapshot(idx) {
 }
 
 // ================================================================
+// IR SLOT VIEWER
+// ================================================================
+
+function renderIRSlots(data) {
+    const table = data.data?.tone?.irUuidTable;
+    if (!table) return '';
+    const used = Object.entries(table)
+        .filter(([,uuid]) => uuid && uuid.length > 0)
+        .sort(([a],[b]) => parseInt(a) - parseInt(b));
+    if (!used.length) return '';
+
+    // Find which IR blocks reference each slot
+    const slotToBlock = {};
+    for (const dspId of ['dsp0','dsp1']) {
+        const dsp = data.data?.tone?.[dspId];
+        if (!dsp) continue;
+        for (const [blockId, blk] of Object.entries(dsp)) {
+            if (blk?.['@model']?.includes('ImpulseResponse') && blk['@uuid']) {
+                slotToBlock[blk['@uuid']] = { dspId, blockId };
+            }
+        }
+    }
+
+    return `<div>
+        <h2 class="text-xl font-bold text-white mb-4">IR Slots</h2>
+        <p class="text-xs text-gray-600 mb-3">Impulse Response UUIDs loaded in this preset. You'll need these if transferring the preset to a new device.</p>
+        <div class="space-y-2">
+        ${used.map(([slot, uuid]) => {
+            const ref = slotToBlock[uuid];
+            const refHtml = ref ? `<span class="text-xs text-amber-500 ml-2">used by ${ref.dspId} ${ref.blockId}</span>` : '';
+            return `<div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 flex items-center gap-4 font-mono text-sm">
+                <span class="text-gray-500 w-8 text-right flex-shrink-0">IR ${parseInt(slot)+1}</span>
+                <span class="text-gray-400 text-xs flex-1 truncate">${uuid}</span>
+                ${refHtml}
+            </div>`;
+        }).join('')}
+        </div>
+    </div>`;
+}
+
+// ================================================================
+// MIDI / CONTROLLER ASSIGNMENTS
+// ================================================================
+
+function renderMidi(data) {
+    const assignments = [];
+    for (const dspId of ['dsp0','dsp1']) {
+        const dsp = data.data?.tone?.[dspId];
+        if (!dsp) continue;
+        for (const [blockId, blk] of Object.entries(dsp)) {
+            if (!blk || typeof blk !== 'object') continue;
+            // Controller assignments are stored as @controller_X keys or nested objects
+            for (const [key, val] of Object.entries(blk)) {
+                if (key.startsWith('@') && key.includes('controller')) {
+                    assignments.push({ dspId, blockId, key, val });
+                }
+                // Some presets use nested controller map
+                if (typeof val === 'object' && val !== null && val['@cc'] !== undefined) {
+                    const info = lookupModel(blk['@model'] || '');
+                    assignments.push({
+                        dspId, blockId,
+                        param: fmtParamName(key) || key,
+                        cc: val['@cc'],
+                        min: val['@min'],
+                        max: val['@max'],
+                        blockName: info.name,
+                    });
+                }
+            }
+        }
+    }
+
+    if (!assignments.length) return '';
+
+    return `<div>
+        <h2 class="text-xl font-bold text-white mb-4">MIDI / Controller Assignments</h2>
+        <div class="space-y-2">
+        ${assignments.map(a => {
+            if (a.cc !== undefined) {
+                return `<div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-sm flex flex-wrap gap-4 items-center">
+                    <span class="text-amber-400 font-mono">CC ${a.cc}</span>
+                    <span class="text-gray-300">${a.blockName} — ${a.param}</span>
+                    ${a.min !== undefined ? `<span class="text-gray-600 text-xs">range: ${a.min} → ${a.max}</span>` : ''}
+                    <span class="text-gray-700 text-xs">${a.dspId} ${a.blockId}</span>
+                </div>`;
+            }
+            return '';
+        }).filter(Boolean).join('') || '<div class="text-sm text-gray-600">No MIDI CC assignments found in this preset.</div>'}
+        </div>
+    </div>`;
+}
+
+// ================================================================
 // FOOTSWITCH OVERVIEW
 // ================================================================
 
@@ -968,10 +1177,16 @@ function renderPreset(data) {
                 <div class="text-xs text-gray-600">Active Snapshot</div>
                 <div class="text-lg font-bold text-amber-400" id="active-snap-label">${gActiveSnapshot+1} — ${snapName}</div>
                 <div class="text-xs text-gray-600" id="active-snap-tempo">${globalTone['@tempo']||120} BPM</div>
-                <button onclick="exportPreset()"
-                    class="mt-2 text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
-                    Export .hlx
-                </button>
+                <div class="flex gap-2 mt-2 no-print">
+                    <button onclick="exportPreset()"
+                        class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
+                        Export .hlx
+                    </button>
+                    <button onclick="window.print()"
+                        class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
+                        Print
+                    </button>
+                </div>
             </div>
         </div>`;
 
@@ -992,6 +1207,12 @@ function renderPreset(data) {
 
     // ── Footswitches
     document.getElementById('footswitches-section').innerHTML = renderFootswitches(tone);
+
+    // ── IR Slots
+    document.getElementById('ir-section').innerHTML = renderIRSlots(data);
+
+    // ── MIDI
+    document.getElementById('midi-section').innerHTML = renderMidi(data);
 
     // ── Block details
     renderBlockDetails();
