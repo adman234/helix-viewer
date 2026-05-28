@@ -58,7 +58,7 @@
             </button>
             <a href="https://ko-fi.com/adman234" target="_blank" rel="noopener"
                class="text-xs bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold px-3 py-1.5 rounded-lg transition-colors">
-                Support
+                Support Me
             </a>
             <button id="btn-about"
                 class="text-xs text-gray-400 border border-gray-600 hover:border-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition-colors">
@@ -107,7 +107,7 @@
 <div id="modal-about" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/70" onclick="closeAbout()"></div>
     <div class="relative bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto">
-        <button onclick="closeAbout()" class="absolute top-4 right-4 text-gray-500 hover:text-white text-xl leading-none">&#x2715;</button>
+        <button onclick="closeAbout()" class="absolute top-4 right-4 text-gray-500 hover:text-white text-sm leading-none px-2 py-1">Close</button>
         <div class="flex items-center gap-3 mb-5">
             <div class="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center font-black text-gray-900 text-sm flex-shrink-0">H</div>
             <h2 class="text-lg font-bold text-white">Helix Preset Viewer</h2>
@@ -178,7 +178,6 @@
 <div id="modal-ratelimit" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/70"></div>
     <div class="relative bg-gray-900 border border-amber-700 rounded-2xl p-6 max-w-sm w-full text-center">
-        <div class="text-3xl mb-3">&#9203;</div>
         <h2 class="text-lg font-bold text-white mb-2">Take a Break</h2>
         <p class="text-sm text-gray-400 mb-4">
             You've loaded <span id="rl-count"></span> presets in the last hour.
@@ -613,8 +612,14 @@ function buildChain(dspData, topology) {
 // CHIP (signal chain visual block)
 // ================================================================
 
-let gPreset = null;
-let gActiveSnapshot = 0;
+let gPreset          = null;
+let gActiveSnapshot  = 0;
+let gRemovedBlocks   = new Set(); // "dspId:blockId"
+let gRemovedDSPs     = new Set(); // "dspId"
+
+function isBlockRemoved(dspId, blockId) {
+    return gRemovedDSPs.has(dspId) || gRemovedBlocks.has(`${dspId}:${blockId}`);
+}
 
 function snapEnabled(blockId, dspId, fallback) {
     const snap = gPreset?.data?.tone?.[`snapshot${gActiveSnapshot}`];
@@ -632,6 +637,7 @@ function fsSummary(blockId, dspId) {
 
 function chip(block, dspId, clickable = true) {
     const id     = block._id;
+    if (isBlockRemoved(dspId, id)) return ''; // hidden from chain when pending removal
     const model  = block['@model'] || '';
     const info   = lookupModel(model);
     const s      = catStyle(info.category);
@@ -645,7 +651,7 @@ function chip(block, dspId, clickable = true) {
             <div class="w-2 h-2 rounded-full ${on ? s.dot : 'bg-gray-700'} mx-auto mb-1.5"></div>
             <div class="text-xs font-semibold ${s.text} leading-tight">${info.name}</div>
             <div class="text-xs text-gray-600 mt-0.5">${info.category}</div>
-            ${fsLbl ? `<div class="text-xs text-gray-500 mt-0.5 truncate" title="Footswitch: ${fsLbl}">⚡ ${fsLbl}</div>` : ''}
+            ${fsLbl ? `<div class="text-xs text-gray-500 mt-0.5 truncate" title="Footswitch: ${fsLbl}">${fsLbl}</div>` : ''}
         </div>
     </div>`;
 }
@@ -663,7 +669,7 @@ function arrow() {
 }
 
 function emptyPath() {
-    return `<div class="flex-shrink-0 self-center border border-dashed border-gray-800 rounded-lg px-4 py-2 text-xs text-gray-700">-empty —</div>`;
+    return `<div class="flex-shrink-0 self-center border border-dashed border-gray-800 rounded-lg px-4 py-2 text-xs text-gray-700">empty</div>`;
 }
 
 function renderChain(dspId, dspData, topology, label) {
@@ -733,10 +739,28 @@ function renderChain(dspId, dspData, topology, label) {
         </div>`;
     }
 
+    const dspRemoved = gRemovedDSPs.has(dspId);
+    if (dspRemoved) {
+        return `<div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 opacity-40">
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-bold text-gray-500 uppercase tracking-wider line-through">${label}</span>
+                <span class="text-xs text-red-500 no-underline">Will be removed on export</span>
+                <button onclick="toggleRemoveDSP('${dspId}')"
+                    class="text-xs text-gray-400 border border-gray-600 hover:border-amber-500 hover:text-amber-400 px-2 py-0.5 rounded transition-colors">
+                    Restore DSP
+                </button>
+            </div>
+        </div>`;
+    }
+
     return `<div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
         <div class="flex items-center gap-3 mb-4">
             <span class="text-sm font-bold text-gray-300 uppercase tracking-wider">${label}</span>
             <span class="text-xs text-gray-600 font-mono">topology: ${topology||'A'}</span>
+            <button onclick="toggleRemoveDSP('${dspId}')"
+                class="text-xs text-gray-700 hover:text-red-400 hover:border-red-800 border border-gray-800 px-2 py-0.5 rounded transition-colors ml-auto">
+                Remove DSP
+            </button>
         </div>
         <div class="overflow-x-auto pb-2">
             ${inner}
@@ -754,9 +778,10 @@ function detailCard(blockId, blockData, dspId) {
     const skip = ['inputA','inputB','split','join','outputA','outputB','cab0'];
     if (skip.includes(blockId)) return '';
 
-    const info = lookupModel(model);
-    const s    = catStyle(info.category);
-    const on   = snapEnabled(blockId, dspId, blockData['@enabled'] !== false);
+    const info    = lookupModel(model);
+    const s       = catStyle(info.category);
+    const on      = snapEnabled(blockId, dspId, blockData['@enabled'] !== false);
+    const removed = isBlockRemoved(dspId, blockId);
 
     // Parameters (non-@ keys)
     const params = Object.entries(blockData).filter(([k]) => !k.startsWith('@') && k !== '_id');
@@ -764,7 +789,7 @@ function detailCard(blockId, blockData, dspId) {
     // Footswitch
     const fsData = gPreset?.data?.tone?.footswitch?.[dspId]?.[blockId];
     let fsHtml = '';
-    if (fsData) {
+    if (fsData && !removed) {
         const fsLabel = fsData['@fs_customlabel'] || fsData['@fs_label'] || '';
         const fsIdx   = fsData['@fs_index'] !== undefined ? `FS ${fsData['@fs_index']+1}` : '';
         const fsMom   = fsData['@fs_momentary'] ? ' (Momentary)' : '';
@@ -775,14 +800,28 @@ function detailCard(blockId, blockData, dspId) {
     }
 
     const infoHtml = info.info ? `<div class="text-xs text-gray-600 italic">${info.info}</div>` : '';
+    const cardOpacity = removed ? 'opacity-40' : (on ? '' : 'opacity-60');
+    const nameClass   = removed ? 'line-through text-gray-500' : 'text-white';
+
+    const removeBtn = removed
+        ? `<button onclick="toggleRemoveBlock('${dspId}','${blockId}')"
+                class="text-xs px-2 py-1 rounded-lg bg-gray-900 text-amber-500 hover:bg-amber-950 hover:text-amber-400 transition-colors border border-amber-900">
+                Undo Remove
+            </button>`
+        : `<button onclick="toggleRemoveBlock('${dspId}','${blockId}')"
+                title="Mark block for removal on export (reduces Stomp block count)"
+                class="text-xs px-2 py-1 rounded-lg bg-gray-900 text-gray-600 hover:bg-red-950 hover:text-red-400 transition-colors border border-gray-800 hover:border-red-800">
+                Remove
+            </button>`;
 
     return `<div id="detail-${dspId}-${blockId}"
-                 class="${s.bg} border ${s.border} rounded-2xl p-5 ${on ? '' : 'opacity-60'}">
+                 class="${s.bg} border ${s.border} rounded-2xl p-5 ${cardOpacity}">
+        ${removed ? `<div class="text-xs text-red-500 mb-3">Will be removed on export</div>` : ''}
         <div class="flex items-start justify-between gap-4 mb-4">
             <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
                     <div class="w-3 h-3 rounded-full flex-shrink-0 ${on ? s.dot : 'bg-gray-700'}"></div>
-                    <span class="text-base font-bold text-white">${info.name}</span>
+                    <span class="text-base font-bold ${nameClass}">${info.name}</span>
                     <span class="text-xs px-2 py-0.5 rounded-full ${s.badge} ${s.text}">${info.category}</span>
                 </div>
                 ${infoHtml}
@@ -790,23 +829,19 @@ function detailCard(blockId, blockData, dspId) {
             </div>
             <div class="flex flex-col items-end gap-2 flex-shrink-0">
                 <div class="flex items-center gap-1.5">
-                    <button onclick="toggleBlock('${dspId}','${blockId}')"
+                    ${!removed ? `<button onclick="toggleBlock('${dspId}','${blockId}')"
                         title="Toggle on/off in active snapshot (block still exists in preset)"
                         class="text-xs font-bold px-2.5 py-1 rounded-lg transition-colors
                             ${on ? 'bg-green-900 text-green-400 hover:bg-green-800'
                                  : 'bg-gray-800 text-gray-500 hover:bg-green-900 hover:text-green-400'}">
                         ${on ? 'ON' : 'OFF'}
-                    </button>
-                    <button onclick="removeBlock('${dspId}','${blockId}')"
-                        title="Permanently remove block from preset (reduces Stomp block count)"
-                        class="text-xs px-2 py-1 rounded-lg bg-gray-900 text-gray-600 hover:bg-red-950 hover:text-red-400 transition-colors border border-gray-800 hover:border-red-800">
-                        Remove
-                    </button>
+                    </button>` : ''}
+                    ${removeBtn}
                 </div>
                 <div class="text-xs text-gray-700">${dspId.toUpperCase()} · ${blockId}</div>
             </div>
         </div>
-        ${params.length > 0 ? `
+        ${!removed && params.length > 0 ? `
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             ${params.map(([k,v]) => {
                 const n   = fmtParamName(k);
@@ -848,23 +883,53 @@ function toggleBlock(dspId, blockId) {
     document.getElementById('stomp-section').innerHTML = stompBanner();
 }
 
-function removeBlock(dspId, blockId) {
-    if (!confirm(`Remove "${blockId}" from the preset? This reduces the block count for Stomp compatibility. Cannot be undone without reloading the original file.`)) return;
-    const dsp = gPreset?.data?.tone?.[dspId];
-    if (!dsp || !dsp[blockId]) return;
-    delete dsp[blockId];
-    // Also remove from all snapshot block lists
-    const tone = gPreset.data.tone;
-    for (let i = 0; i <= 7; i++) {
-        const snap = tone[`snapshot${i}`];
-        if (snap?.blocks?.[dspId]) delete snap.blocks[dspId][blockId];
+function toggleRemoveBlock(dspId, blockId) {
+    const key = `${dspId}:${blockId}`;
+    if (gRemovedBlocks.has(key)) {
+        gRemovedBlocks.delete(key);
+    } else {
+        gRemovedBlocks.add(key);
     }
-    // Remove footswitch assignment if any
-    if (tone.footswitch?.[dspId]) delete tone.footswitch[dspId][blockId];
-    try { localStorage.setItem('hlx_last_preset', JSON.stringify(gPreset)); } catch(e) {}
     refreshChains();
     renderBlockDetails();
     document.getElementById('stomp-section').innerHTML = stompBanner();
+}
+
+function toggleRemoveDSP(dspId) {
+    if (gRemovedDSPs.has(dspId)) {
+        gRemovedDSPs.delete(dspId);
+    } else {
+        gRemovedDSPs.add(dspId);
+    }
+    refreshChains();
+    renderBlockDetails();
+    document.getElementById('stomp-section').innerHTML = stompBanner();
+}
+
+function buildExportData() {
+    const clone = JSON.parse(JSON.stringify(gPreset));
+    const tone  = clone.data.tone;
+    for (const dspId of gRemovedDSPs) {
+        delete tone[dspId];
+        for (let i = 0; i <= 7; i++) {
+            const snap = tone[`snapshot${i}`];
+            if (snap?.blocks) delete snap.blocks[dspId];
+        }
+        if (tone.footswitch) delete tone.footswitch[dspId];
+    }
+    for (const key of gRemovedBlocks) {
+        const colonIdx = key.indexOf(':');
+        const dspId   = key.slice(0, colonIdx);
+        const blockId = key.slice(colonIdx + 1);
+        if (!tone[dspId]) continue;
+        delete tone[dspId][blockId];
+        for (let i = 0; i <= 7; i++) {
+            const snap = tone[`snapshot${i}`];
+            if (snap?.blocks?.[dspId]) delete snap.blocks[dspId][blockId];
+        }
+        if (tone.footswitch?.[dspId]) delete tone.footswitch[dspId][blockId];
+    }
+    return clone;
 }
 
 function refreshChains() {
@@ -901,7 +966,7 @@ function renderBlockDetails() {
 function exportPreset() {
     if (!gPreset) return;
     const name = gPreset.data?.meta?.name || 'preset';
-    const json = JSON.stringify(gPreset);
+    const json = JSON.stringify(buildExportData());
     const blob = new Blob([json], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -930,11 +995,13 @@ function stompBanner() {
     let incompatibleModels = [];
 
     for (const dspId of ['dsp0','dsp1']) {
+        if (gRemovedDSPs.has(dspId)) continue;
         const dsp = tone[dspId];
         if (!dsp) continue;
         const skip = ['inputA','inputB','split','join','outputA','outputB','cab0'];
         for (const [id, blk] of Object.entries(dsp)) {
             if (skip.includes(id) || !blk || typeof blk !== 'object') continue;
+            if (gRemovedBlocks.has(`${dspId}:${id}`)) continue;
             blockCount++;
             const m = blk['@model'] || '';
             if (STOMP_INCOMPATIBLE_MODELS.has(m) || m.startsWith('@')) {
@@ -994,7 +1061,7 @@ function renderSnapshots(tone) {
                         ${isCur ? 'bg-amber-950 border-amber-600':'bg-gray-900 border-gray-800'}"
                     onclick="switchSnapshot(${snap.idx})">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs font-black w-5 text-center rounded ${isCur?'text-amber-400':'text-gray-600'}">${isCur ? '&#9654;' : snap.idx+1}</span>
+                    <span class="flex-shrink-0 w-5 flex items-center justify-center">${isCur ? '<span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>' : `<span class="text-xs font-black text-gray-600">${snap.idx+1}</span>`}</span>
                     <span class="text-sm font-semibold truncate ${isCur?'text-white':'text-gray-400'}">${name}</span>
                 </div>
                 <div class="text-xs text-gray-600">${tempo} BPM · ${on}/${total} blocks on</div>
@@ -1054,8 +1121,8 @@ function renderIRSlots(data) {
         <summary class="cursor-pointer list-none flex items-center gap-2 mb-0">
             <h2 class="text-xl font-bold text-white">IR Slots</h2>
             <span class="text-xs text-gray-600">(${used.length} used)</span>
-            <span class="text-gray-600 text-sm group-open:hidden">&#9660; show</span>
-            <span class="text-gray-600 text-sm hidden group-open:inline">&#9650; hide</span>
+            <span class="text-gray-600 text-sm group-open:hidden">+ show</span>
+            <span class="text-gray-600 text-sm hidden group-open:inline">- hide</span>
         </summary>
         <div class="mt-3">
         <p class="text-xs text-gray-600 mb-3">Impulse Response UUIDs loaded in this preset. You'll need these if transferring the preset to a new device.</p>
@@ -1188,6 +1255,8 @@ function scrollToBlock(dspId, blockId) {
 
 function renderPreset(data) {
     gPreset = data;
+    gRemovedBlocks.clear();
+    gRemovedDSPs.clear();
     const tone = data.data?.tone || {};
     const meta = data.data?.meta || {};
     const globalTone = tone.global || {};
@@ -1277,6 +1346,10 @@ function loadFile(file) {
             const data = JSON.parse(e.target.result);
             if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset -missing L6Preset schema tag.');
             renderPreset(data);
+            // Silently upload to backend for persistent storage (fails gracefully if unavailable)
+            const fd = new FormData();
+            fd.append('file', file, file.name);
+            fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
         } catch(err) {
             showErr(err.message || 'Could not parse the file.');
         }
