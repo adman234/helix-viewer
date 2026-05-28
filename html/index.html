@@ -493,6 +493,13 @@ function buildChain(dspData, topology) {
 // ================================================================
 
 let gPreset = null;
+let gActiveSnapshot = 0;
+
+function snapEnabled(blockId, dspId, fallback) {
+    const snap = gPreset?.data?.tone?.[`snapshot${gActiveSnapshot}`];
+    const val  = snap?.blocks?.[dspId]?.[blockId];
+    return val !== undefined ? val : fallback;
+}
 
 function fsSummary(blockId, dspId) {
     const fs = gPreset?.data?.tone?.footswitch;
@@ -507,7 +514,7 @@ function chip(block, dspId, clickable = true) {
     const model  = block['@model'] || '';
     const info   = lookupModel(model);
     const s      = catStyle(info.category);
-    const on     = block['@enabled'] !== false;
+    const on     = snapEnabled(id, dspId, block['@enabled'] !== false);
     const fsLbl  = fsSummary(id, dspId);
     const dim    = on ? '' : 'opacity-40';
     const click  = clickable ? `onclick="scrollToBlock('${dspId}','${id}')" style="cursor:pointer"` : '';
@@ -692,19 +699,20 @@ function renderSnapshots(tone) {
     }
     if (!snaps.length) return '';
 
-    const cur = tone.global?.['@current_snapshot'] ?? 0;
-
     return `<div>
-        <h2 class="text-xl font-bold text-white mb-4">Snapshots</h2>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <h2 class="text-xl font-bold text-white mb-1">Snapshots</h2>
+        <p class="text-xs text-gray-600 mb-4">Click a snapshot to preview its block states in the signal chain above.</p>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="snapshot-grid">
         ${snaps.map(snap => {
-            const isCur = snap.idx === cur;
+            const isCur = snap.idx === gActiveSnapshot;
             const name  = snap['@name'] || `Snapshot ${snap.idx+1}`;
             const tempo = snap['@tempo'] || 120;
             let on=0, total=0;
             for (const dBlocks of Object.values(snap.blocks||{}))
                 for (const en of Object.values(dBlocks)) { total++; if(en) on++; }
-            return `<div class="rounded-xl p-3 border ${isCur ? 'bg-amber-950 border-amber-600':'bg-gray-900 border-gray-800'}">
+            return `<div class="rounded-xl p-3 border cursor-pointer transition-all hover:border-amber-700
+                        ${isCur ? 'bg-amber-950 border-amber-600':'bg-gray-900 border-gray-800'}"
+                    onclick="switchSnapshot(${snap.idx})">
                 <div class="flex items-center gap-2 mb-1">
                     <span class="text-xs font-black w-4 text-center rounded ${isCur?'text-amber-400':'text-gray-600'}">${snap.idx+1}</span>
                     <span class="text-sm font-semibold truncate ${isCur?'text-white':'text-gray-400'}">${name}</span>
@@ -715,6 +723,28 @@ function renderSnapshots(tone) {
         }).join('')}
         </div>
     </div>`;
+}
+
+function switchSnapshot(idx) {
+    gActiveSnapshot = idx;
+    // Re-render chains (reflects new enabled states) and snapshot grid
+    const tone = gPreset.data.tone;
+    const globalTone = tone.global || {};
+    const topo0 = globalTone['@topology0'] || 'A';
+    const topo1 = globalTone['@topology1'] || 'A';
+    let chainsHtml = '<h2 class="text-xl font-bold text-white mb-4">Signal Chain</h2><div class="space-y-4">';
+    if (tone.dsp0) chainsHtml += renderChain('dsp0', tone.dsp0, topo0, 'DSP 1');
+    if (tone.dsp1) chainsHtml += renderChain('dsp1', tone.dsp1, topo1, 'DSP 2');
+    chainsHtml += '</div>';
+    document.getElementById('signal-chains').innerHTML = chainsHtml;
+    document.getElementById('snapshots-section').innerHTML = renderSnapshots(tone);
+    // Update active snapshot label in meta header
+    const snapName = tone[`snapshot${idx}`]?.['@name'] || `Snapshot ${idx+1}`;
+    const snapTempo = tone[`snapshot${idx}`]?.['@tempo'] || globalTone['@tempo'] || 120;
+    const snapEl = document.getElementById('active-snap-label');
+    if (snapEl) snapEl.textContent = `${idx+1} — ${snapName}`;
+    const tempoEl = document.getElementById('active-snap-tempo');
+    if (tempoEl) tempoEl.textContent = `${snapTempo} BPM`;
 }
 
 // ================================================================
@@ -786,9 +816,14 @@ function renderPreset(data) {
         ? new Date(meta.modifieddate * 1000).toLocaleDateString(undefined, {year:'numeric',month:'short',day:'numeric'})
         : null;
 
+    // Initialise active snapshot from preset global state
+    gActiveSnapshot = globalTone['@current_snapshot'] ?? 0;
+
+    // Save to local storage for session restore
+    try { localStorage.setItem('hlx_last_preset', JSON.stringify(data)); } catch(e) {}
+
     // ── Meta header
-    const curSnap = globalTone['@current_snapshot'] ?? 0;
-    const snapName = tone[`snapshot${curSnap}`]?.['@name'] || `Snapshot ${curSnap+1}`;
+    const snapName = tone[`snapshot${gActiveSnapshot}`]?.['@name'] || `Snapshot ${gActiveSnapshot+1}`;
     document.getElementById('preset-meta').innerHTML = `
         <div class="flex flex-wrap gap-4 items-start justify-between">
             <div>
@@ -802,8 +837,8 @@ function renderPreset(data) {
             </div>
             <div class="text-right">
                 <div class="text-xs text-gray-600">Active Snapshot</div>
-                <div class="text-lg font-bold text-amber-400">${curSnap+1} — ${snapName}</div>
-                <div class="text-xs text-gray-600">${globalTone['@tempo']||120} BPM</div>
+                <div class="text-lg font-bold text-amber-400" id="active-snap-label">${gActiveSnapshot+1} — ${snapName}</div>
+                <div class="text-xs text-gray-600" id="active-snap-tempo">${globalTone['@tempo']||120} BPM</div>
             </div>
         </div>`;
 
@@ -935,6 +970,20 @@ function closeAbout() {
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeAbout(); closeRateLimit(); }
 });
+
+// ================================================================
+// LOCAL STORAGE RESTORE
+// ================================================================
+(function tryRestore() {
+    try {
+        const saved = localStorage.getItem('hlx_last_preset');
+        if (!saved) return;
+        const data = JSON.parse(saved);
+        if (data?.schema !== 'L6Preset') return;
+        // Restore without counting against rate limit
+        renderPreset(data);
+    } catch(e) {}
+})();
 </script>
 </body>
 </html>
