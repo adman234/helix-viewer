@@ -384,93 +384,182 @@ const CAT_STYLE = {
 // ================================================================
 const PARAM_TIPS = {
     // Universal
-    'mix':        'Wet/dry blend. 0% = fully dry, 100% = fully wet.',
-    'level':      'Output volume of this block in dB.',
-    'gain':       'Input gain in dB.',
-    'rate':       'Modulation speed -how fast the effect cycles.',
-    'depth':      'Modulation intensity -how pronounced the effect is.',
-    'tone':       'Tonal brightness or color of the effect.',
-    'decay':      'How long the effect (reverb tail, sustain) fades out.',
-    'pre delay':  'Silent gap before the reverb or delay effect starts.',
-    'predelay':   'Silent gap before the reverb or delay effect starts.',
-    'low cut':    'Removes low frequencies below this Hz value. Higher value = more bass cut. Useful for mud and rumble.',
-    'high cut':   'Removes high frequencies above this Hz value. Lower value = more treble cut. Useful for harshness and hiss.',
-    'lowcut':     'Removes low frequencies below this Hz value. Higher value = more bass cut. Useful for mud and rumble.',
-    'highcut':    'Removes high frequencies above this Hz value. Lower value = more treble cut. Useful for harshness and hiss.',
-    'hicut':      'Removes high frequencies above this Hz value. Lower value = more treble cut. Useful for harshness and hiss.',
-    'spread':     'Stereo width. Higher values push the effect wider in the stereo field.',
-    'diffusion':  'How scattered reverb reflections are. Higher = smoother, less distinct.',
-    'damping':    'High-frequency absorption in the reverb tail -simulates softer room surfaces.',
-    'distance':   'Virtual microphone distance from the cabinet.',
-    'er level':   'Early Reflections level -the first bounces before the reverb tail.',
-    'erlevel':    'Early Reflections level -the first bounces before the reverb tail.',
+    'mix':           'Wet/dry blend. 0% = fully dry, 100% = fully wet.',
+    'level':         'Output volume of this block in dB.',
+    'gain':          'Input gain in dB.',
+    'rate':          'Modulation speed - how fast the effect cycles.',
+    'depth':         'Modulation intensity - how pronounced the effect is.',
+    'tone':          'Tonal brightness or color of the effect.',
+    'decay':         'How long the effect (reverb tail, sustain) fades out.',
+    'pre delay':     'Silent gap before the reverb or delay effect starts.',
+    'predelay':      'Silent gap before the reverb or delay effect starts.',
+    'low cut':       'Removes low frequencies below this Hz value. Higher value = more bass cut.',
+    'high cut':      'Removes high frequencies above this Hz value. Lower value = more treble cut.',
+    'lowcut':        'Removes low frequencies below this Hz value. Higher value = more bass cut.',
+    'highcut':       'Removes high frequencies above this Hz value. Lower value = more treble cut.',
+    'hicut':         'Removes high frequencies above this Hz value. Lower value = more treble cut.',
+    'spread':        'Stereo width or path balance. Higher values push the effect wider in the stereo field.',
+    'diffusion':     'How scattered reverb reflections are. Higher = smoother, less distinct.',
+    'damping':       'High-frequency absorption in the reverb tail - simulates softer room surfaces.',
+    'distance':      'Virtual microphone distance from the cabinet.',
+    'er level':      'Early Reflections level - the first bounces before the reverb tail.',
+    'erlevel':       'Early Reflections level - the first bounces before the reverb tail.',
+    'time':          'Delay repeat time - the interval between the dry signal and the first echo.',
+    'scale':         'Time scaling for delay subdivisions or modulation sweep range.',
+    'noise':         'Amount of simulated tape or BBD circuit noise - adds vintage character.',
+    'intensity':     'Strength of the modulation effect. Higher = more pronounced chopping or wobble.',
+    'speed':         'Rate of the modulation cycle (see also: Rate).',
+    'modulation':    'Pitch modulation depth added to the reverb or effect tail.',
+    'mode':          'Selects the operating character or algorithm of the effect.',
+    'blend':         'Parallel blend of dry and processed signal - like Mix but often preserves low-end weight.',
+
+    // Signal routing
+    'balancea':      'Level of signal fed into the A path from a Y-split.',
+    'balanceb':      'Level of signal fed into the B path from a Y-split.',
+    'a level':       'Output level of the A signal path at the merge/join block.',
+    'b level':       'Output level of the B signal path at the merge/join block.',
+    'a pan':         'Left-right pan of the A path at the join block.',
+    'b pan':         'Left-right pan of the B path at the join block.',
+    'b polarity':    'Inverts the phase of the B path before merging - fixes phase cancellation.',
+
+    // FX Loop
+    'send':          'Output level of the effects loop send in dB - controls signal going to external gear.',
+    'return':        'Input level of the effects loop return in dB - controls signal coming back from external gear.',
 
     // Compressor
-    'attack':     'How quickly the compressor clamps down after the signal exceeds the threshold.',
-    'release':    'How quickly the compressor lets go after the signal drops below the threshold.',
-    'ratio':      'Compression ratio -e.g. 4:1 means 4dB in = 1dB out above the threshold.',
-    'threshold':  'Level at which compression begins. Signals above this get compressed.',
-    'lo thresh':  'Threshold for the low-frequency compression band.',
-    'hi thresh':  'Threshold for the high-frequency compression band.',
-    'mid thresh': 'Threshold for the mid-frequency compression band.',
-    'lo gain':    'Make-up gain for the low frequency band after compression.',
-    'hi gain':    'Make-up gain for the high frequency band after compression.',
-    'mid gain':   'Make-up gain for the mid frequency band after compression.',
-    'lo x freq':  'Crossover point between the low and mid compression bands.',
-    'hi x freq':  'Crossover point between the mid and high compression bands.',
-    'headroom':   'Extra dynamic range before clipping. Higher = more natural, less squashed.',
-    'detector':   'Peak vs RMS detection. Peak reacts to transients; RMS averages the signal.',
+    'attack':        'How quickly the compressor clamps down after the signal exceeds the threshold.',
+    'release':       'How quickly the compressor lets go after the signal drops below the threshold.',
+    'ratio':         'Compression ratio - e.g. 4:1 means 4dB in = 1dB out above the threshold.',
+    'threshold':     'Level at which compression or gating begins.',
+    'lo thresh':     'Threshold for the low-frequency compression band.',
+    'hi thresh':     'Threshold for the high-frequency compression band.',
+    'mid thresh':    'Threshold for the mid-frequency compression band.',
+    'lo gain':       'Make-up gain for the low frequency band after compression.',
+    'hi gain':       'Make-up gain for the high frequency band after compression.',
+    'mid gain':      'Make-up gain for the mid frequency band after compression.',
+    'lo x freq':     'Crossover point between the low and mid compression bands.',
+    'hi x freq':     'Crossover point between the mid and high compression bands.',
+    'headroom':      'Extra dynamic range before clipping. Higher = more natural, less squashed.',
+    'detector':      'Peak vs RMS detection. Peak reacts to transients; RMS averages the signal.',
+    'emphasis':      'Sidechain pre-emphasis - shapes which frequencies trigger the most compression (LA-style compressors).',
+    'peakreduction': 'Primary compression depth control (LA-style). Higher = more gain reduction.',
+    'knee':          'Compression curve softness around the threshold. Soft knee = gradual onset; hard = abrupt.',
+    'type':          'Mode or character selector - e.g. optical vs VCA, or peak vs RMS detection.',
 
     // Amp
-    'drive':      'Preamp gain -how hard the amp input stage is pushed into saturation.',
-    'master':     'Master volume -power amp stage level after the preamp.',
-    'bass':       'Low-frequency EQ on the amp. Boosts or cuts low end.',
-    'mid':        'Midrange EQ on the amp.',
-    'treble':     'High-frequency EQ on the amp.',
-    'lowmid':     'Low-mid frequency EQ band.',
-    'highmid':    'High-mid frequency EQ band.',
-    'sag':        'Power supply sag simulation -how the amp "breathes" under heavy playing. Higher = more vintage feel.',
-    'hum':        'Simulates transformer hum and power supply noise -adds vintage character.',
-    'ripple':     'AC ripple in the power supply simulation. Affects the amp\'s feel under load.',
-    'bias':       'Tube bias -affects where in the tube\'s operating range the amp runs. Affects headroom and breakup character.',
-    'biasx':      'Bias excursion -how much the bias shifts dynamically with signal level.',
-    'chvol':      'Channel volume -sets the overall output of this amp channel.',
+    'drive':         'Preamp gain - how hard the amp input stage is pushed into saturation.',
+    'master':        'Master volume - power amp stage level after the preamp.',
+    'bass':          'Low-frequency EQ on the amp.',
+    'mid':           'Midrange EQ on the amp.',
+    'treble':        'High-frequency EQ on the amp.',
+    'lowmid':        'Low-mid frequency EQ band.',
+    'highmid':       'High-mid frequency EQ band.',
+    'presence':      'Upper-midrange brightness - adds cut and clarity above the treble range.',
+    'sag':           'Power supply sag - how the amp breathes under heavy playing. Higher = more vintage compression.',
+    'hum':           'Simulates transformer hum and power supply noise - adds vintage character.',
+    'ripple':        'AC ripple in the power supply simulation. Affects the amp\'s feel under load.',
+    'bias':          'Tube bias - affects headroom and breakup character.',
+    'biasx':         'Bias excursion - how much the bias shifts dynamically with signal level.',
+    'chvol':         'Channel volume - overall output level of this amp channel.',
+    'ch vol':        'Channel volume - overall output level of this amp channel.',
+    'bright':        'Bright switch - engages a high-frequency boost for added shimmer and clarity.',
+    'deep':          'Deep switch - engages a low-frequency boost for added fullness and bass.',
+    'ultrahi':       'Ultra High switch - boosts very high frequencies for extra top-end air.',
+    'ultralo':       'Ultra Low switch - boosts very low bass for extra sub-bass thump.',
+    'eq':            'Enables or bypasses the graphic EQ section of the amp.',
+    'eqlevel':       'Output level of the graphic EQ section in dB.',
+    'midfreq':       'Selects the center frequency of the amp\'s mid EQ control.',
+    'boost':         'Engages a clean gain boost stage for added volume or pre-gain push.',
+
+    // Distortion / Drive
+    'clipping':      'Clipping type - affects harmonic character (symmetrical vs asymmetrical saturation).',
+    'fuzz':          'Enables or selects the fuzz circuit character.',
+    'fuzzgain':      'Input gain of the fuzz circuit - how hard it is pushed.',
+    'fuzzlevel':     'Output level of the fuzz section.',
+    'fuzzoct':       'Octave fuzz - adds a harsh upper-octave harmonic for a synth-like effect.',
+    'fuzztone':      'Tone control for the fuzz section.',
+    'odgain':        'Overdrive gain - how hard the OD circuit is pushed into saturation.',
+    'odlevel':       'Output level of the overdrive section.',
+    'odlowboost':    'Engages a low-frequency boost on the OD channel for added bass warmth.',
+    'odtone':        'Tone control for the overdrive section.',
+
+    // EQ (parametric)
+    'highfreq':      'Center frequency of the high EQ band in Hz.',
+    'highgain':      'Boost or cut amount for the high EQ band in dB.',
+    'highq':         'Bandwidth (Q) of the high EQ band. Higher Q = narrower, more surgical.',
+    'lowfreq':       'Center frequency of the low EQ band in Hz.',
+    'lowgain':       'Boost or cut amount for the low EQ band in dB.',
+    'lowq':          'Bandwidth (Q) of the low EQ band. Higher Q = narrower, more surgical.',
+    'midgain':       'Boost or cut amount for the mid EQ band in dB.',
+    'midq':          'Bandwidth (Q) of the mid EQ band. Higher Q = narrower, more surgical.',
+
+    // Cabinet / Mic
+    'early reflections': 'Level of early reflections - the first echo bounces off the cabinet/room walls.',
+    'mic':           'Microphone model used to capture the cabinet.',
+    'angle':         'Mic angle relative to the speaker cone. 0° = on-axis (brighter); angled = off-axis (warmer).',
+    'position':      'Mic position from center to edge of the cone. Center = brighter, edge = warmer.',
+    'pan':           'Left-right stereo position of this mic or signal path.',
 
     // Pitch
-    'interval1':  'Pitch shift amount in semitones for voice 1. Negative = down, positive = up.',
-    'interval2':  'Pitch shift amount in semitones for voice 2.',
-    'cents1':     'Fine-tune pitch shift in cents (1/100th of a semitone) for voice 1.',
-    'cents2':     'Fine-tune pitch shift in cents for voice 2.',
-    'levelvoice1':'Output volume of the pitch-shifted voice 1.',
-    'levelvoice2':'Output volume of the pitch-shifted voice 2.',
-    'pandry':     'Pan position of the dry (unshifted) signal.',
-    'panvoice1':  'Pan position of pitch-shifted voice 1.',
-    'time1':      'Pre-delay on the pitch shifted voice -tiny delay before the shift is heard.',
+    'interval1':     'Pitch shift in semitones for voice 1. Negative = down, positive = up.',
+    'interval2':     'Pitch shift in semitones for voice 2.',
+    'cents1':        'Fine-tune pitch shift in cents (1/100th semitone) for voice 1.',
+    'cents2':        'Fine-tune pitch shift in cents for voice 2.',
+    'levelvoice1':   'Output volume of pitch-shifted voice 1.',
+    'levelvoice2':   'Output volume of pitch-shifted voice 2.',
+    'pandry':        'Pan position of the dry (unshifted) signal.',
+    'panvoice1':     'Pan position of pitch-shifted voice 1.',
+    'time1':         'Pre-delay on the pitch-shifted voice - tiny offset before the shift is heard.',
+    'pitch1':        'Pitch shift amount in semitones for the first voice in the reverb.',
+    'pitch2':        'Pitch shift amount in semitones for the second voice in the reverb.',
+    'pitchmix':      'Blend of pitch-shifted voices into the reverb.',
 
     // Delay
-    'feedback':   'Regeneration -how many repeats you hear. Higher = more repeats, approaching infinite at 100%.',
-    'tempo sync': 'When on, delay time follows the global BPM tempo.',
+    'feedback':      'Regeneration - how many repeats you hear. Higher = more repeats, approaching infinite at max.',
+    'bbd size':      'Bucket Brigade Device chip size - affects warmth, bandwidth, and noise of the analog delay emulation.',
+    'wowflutter':    'Tape speed instability simulation. Wow = slow pitch wobble; Flutter = fast vibration.',
+    'fbtone':        'Tone control applied only to the feedback signal - shapes repeats independently of the dry tone.',
+    'drythru':       'When on, passes the dry signal through even at 100% wet mix.',
+    'ramp':          'Speed at which delay time transitions when changed - simulates tape slowdown/speedup.',
+    'splice':        'Behavior when delay time changes - controls whether you hear a pitch sweep or a hard cut.',
+    'tempo sync':    'When on, delay time locks to the global preset tempo (BPM).',
+    'temposync1':    'When on, effect time locks to the global preset tempo (BPM).',
+    'syncselect1':   'Tempo sync subdivision - selects the note value (quarter, dotted eighth, etc.) relative to BPM.',
 
     // Reverb
-    'bass freq':  'Frequency below which bass boost is applied to the reverb tail.',
-    'bass boost': 'Amount of low-frequency boost added to the reverb tail.',
+    'bass freq':     'Frequency below which bass boost is applied to the reverb tail.',
+    'bass boost':    'Amount of low-frequency boost added to the reverb tail.',
+    'mod mix':       'Amount of pitch modulation (chorus-like wobble) in the reverb tail.',
+    'xover':         'Crossover frequency dividing where different reverb processing applies.',
+
+    // Tremolo / Chorus
+    'waveshape':     'Waveform driving the modulation. Sine = smooth; Triangle = in-between; Square = choppy.',
 
     // Filter / Wah
-    'pedal':      'Expression pedal position (0% = heel, 100% = toe).',
-    'filter':     'Filter cutoff frequency or resonance point.',
-    'wave':       'Waveform shape driving the modulation (sine, square, ramp, etc.).',
+    'pedal':         'Expression pedal position (0% = heel, 100% = toe).',
+    'filter':        'Filter cutoff frequency or resonance point.',
+    'wave':          'Waveform shape driving the modulation (sine, square, ramp, etc.).',
+    'fchigh':        'Upper frequency limit of the wah sweep (toe position) in Hz.',
+    'fclow':         'Lower frequency limit of the wah sweep (heel position) in Hz.',
 
     // Volume
-    'volume taper': 'Logarithmic (natural) vs linear volume taper for the pedal sweep.',
+    'volume taper':  'Logarithmic (natural) vs linear taper for the pedal sweep.',
+    'volumetaper':   'Logarithmic (natural) vs linear taper for the pedal sweep.',
 
-    // Cabinet
-    'early reflections': 'Level of early reflections -the first echo bounces off the cabinet/room walls.',
-    'mic':        'Microphone type used to capture the cabinet.',
+    // Bitcrusher
+    'bitdepth':      'Reduces audio bit depth - lower values create lo-fi quantization distortion.',
+    'samplerate':    'Downsamples the audio - lower values create aliasing artifacts and a lo-fi feel.',
+    'closethreshold':'Level below which the built-in noise gate closes.',
+    'openthreshold': 'Level at which the built-in noise gate opens.',
+    'holdtime':      'How long the gate stays open after the signal drops below the close threshold.',
 };
 
 function paramTip(key) {
     const lk = key.toLowerCase().trim();
-    return PARAM_TIPS[lk] || null;
+    if (PARAM_TIPS[lk]) return PARAM_TIPS[lk];
+    // Numeric graphic EQ bands e.g. "33Hz", "2kHz", "900Hz"
+    if (/^\d+\.?\d*(hz|khz)$/.test(lk)) return 'Graphic EQ band - boost or cut at this frequency in dB.';
+    return null;
 }
 
 // ================================================================
@@ -618,6 +707,12 @@ let gRemovedDSPs     = new Set(); // "dspId"
 
 function isBlockRemoved(dspId, blockId) {
     return gRemovedDSPs.has(dspId) || gRemovedBlocks.has(`${dspId}:${blockId}`);
+}
+
+const DSP_SYSTEM_KEYS = new Set(['inputA','inputB','split','join','outputA','outputB','cab0']);
+function dspHasBlocks(dsp) {
+    if (!dsp || typeof dsp !== 'object') return false;
+    return Object.keys(dsp).some(k => !DSP_SYSTEM_KEYS.has(k));
 }
 
 function snapEnabled(blockId, dspId, fallback) {
@@ -941,8 +1036,8 @@ function refreshChains() {
     const tone = gPreset.data.tone;
     const g    = tone.global || {};
     let html = '<h2 class="text-xl font-bold text-white mb-4">Signal Chain</h2><div class="space-y-4">';
-    if (tone.dsp0) html += renderChain('dsp0', tone.dsp0, g['@topology0']||'A', 'DSP 1');
-    if (tone.dsp1) html += renderChain('dsp1', tone.dsp1, g['@topology1']||'A', 'DSP 2');
+    if (dspHasBlocks(tone.dsp0)) html += renderChain('dsp0', tone.dsp0, g['@topology0']||'A', 'DSP 1');
+    if (dspHasBlocks(tone.dsp1)) html += renderChain('dsp1', tone.dsp1, g['@topology1']||'A', 'DSP 2');
     html += '</div>';
     document.getElementById('signal-chains').innerHTML = html;
 }
@@ -951,7 +1046,7 @@ function renderBlockDetails() {
     const tone = gPreset.data.tone;
     let html = '<h2 class="text-xl font-bold text-white mb-4">Block Details</h2>';
     for (const dspId of ['dsp0','dsp1']) {
-        if (!tone[dspId]) continue;
+        if (!dspHasBlocks(tone[dspId])) continue;
         const dspLabel = dspId === 'dsp0' ? 'DSP 1' : 'DSP 2';
         html += `<div class="text-xs font-bold uppercase tracking-widest text-gray-600 mt-8 mb-3">${dspLabel}</div>`;
         const blocks = Object.entries(tone[dspId])
@@ -1084,8 +1179,8 @@ function switchSnapshot(idx) {
     const topo0 = globalTone['@topology0'] || 'A';
     const topo1 = globalTone['@topology1'] || 'A';
     let chainsHtml = '<h2 class="text-xl font-bold text-white mb-4">Signal Chain</h2><div class="space-y-4">';
-    if (tone.dsp0) chainsHtml += renderChain('dsp0', tone.dsp0, topo0, 'DSP 1');
-    if (tone.dsp1) chainsHtml += renderChain('dsp1', tone.dsp1, topo1, 'DSP 2');
+    if (dspHasBlocks(tone.dsp0)) chainsHtml += renderChain('dsp0', tone.dsp0, topo0, 'DSP 1');
+    if (dspHasBlocks(tone.dsp1)) chainsHtml += renderChain('dsp1', tone.dsp1, topo1, 'DSP 2');
     chainsHtml += '</div>';
     document.getElementById('signal-chains').innerHTML = chainsHtml;
     document.getElementById('snapshots-section').innerHTML = renderSnapshots(tone);
@@ -1311,8 +1406,8 @@ function renderPreset(data) {
     const topo0 = globalTone['@topology0'] || 'A';
     const topo1 = globalTone['@topology1'] || 'A';
     let chainsHtml = '<h2 class="text-xl font-bold text-white mb-4">Signal Chain</h2><div class="space-y-4">';
-    if (tone.dsp0) chainsHtml += renderChain('dsp0', tone.dsp0, topo0, 'DSP 1');
-    if (tone.dsp1) chainsHtml += renderChain('dsp1', tone.dsp1, topo1, 'DSP 2');
+    if (dspHasBlocks(tone.dsp0)) chainsHtml += renderChain('dsp0', tone.dsp0, topo0, 'DSP 1');
+    if (dspHasBlocks(tone.dsp1)) chainsHtml += renderChain('dsp1', tone.dsp1, topo1, 'DSP 2');
     chainsHtml += '</div>';
     document.getElementById('signal-chains').innerHTML = chainsHtml;
 
