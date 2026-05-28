@@ -74,7 +74,7 @@
         <div id="drop-area"
              class="border-2 border-dashed border-gray-700 rounded-2xl p-14 text-center cursor-pointer hover:border-amber-500 hover:bg-amber-500/5 transition-all"
              onclick="document.getElementById('file-input').click()">
-            <img src="favicon.svg" class="w-14 h-14 mx-auto mb-4 opacity-40" alt="">
+            <div class="w-16 h-16 rounded-full bg-amber-500/10 border-2 border-amber-600/30 flex items-center justify-center font-black text-amber-500/40 text-3xl mx-auto mb-4">H</div>
             <div class="text-xl font-bold text-white mb-2">Drop Your Preset Here</div>
             <div class="text-sm text-gray-400 mb-6">Drag &amp; drop a <code class="text-amber-400">.hlx</code> file, or click to browse</div>
             <div class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold px-6 py-2.5 rounded-full text-sm transition-colors">
@@ -109,19 +109,26 @@
     <div class="relative bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto">
         <button onclick="closeAbout()" class="absolute top-4 right-4 text-gray-500 hover:text-white text-xl leading-none">&#x2715;</button>
         <div class="flex items-center gap-3 mb-5">
-            <img src="favicon.svg" class="w-8 h-8 opacity-70" alt="">
+            <div class="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center font-black text-gray-900 text-sm flex-shrink-0">H</div>
             <h2 class="text-lg font-bold text-white">Helix Preset Viewer</h2>
         </div>
-        <p class="text-sm text-gray-300 mb-5">
+        <p class="text-sm text-gray-300 mb-2">
             A free, open-source visualizer for Line 6 Helix / HX Stomp / HX Effects preset files.
             Upload a <code class="text-amber-400">.hlx</code> file to explore the signal chain,
-            block parameters, snapshots, and footswitch assignments. Runs entirely in your browser
-            — no files are uploaded to any server.
+            block parameters, snapshots, and footswitch assignments. Runs entirely in your browser -
+            no files are uploaded to any server.
+        </p>
+        <p class="text-xs text-gray-600 mb-5">
+            Built with Claude Code (AI-assisted). May contain bugs or inaccuracies - please report issues on GitHub.
         </p>
         <div class="flex flex-wrap gap-2 mb-6">
             <a href="https://github.com/adman234/helix-viewer" target="_blank" rel="noopener"
                class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition-colors border border-gray-700">
                 GitHub
+            </a>
+            <a href="https://github.com/adman234/helix-viewer/issues/new" target="_blank" rel="noopener"
+               class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg transition-colors border border-gray-700">
+                Report a Bug
             </a>
             <a href="https://ko-fi.com/adman234" target="_blank" rel="noopener"
                class="text-xs bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold px-3 py-1.5 rounded-lg transition-colors">
@@ -382,29 +389,28 @@ const PARAM_TIPS = {
     'mix':        'Wet/dry blend. 0% = fully dry, 100% = fully wet.',
     'level':      'Output volume of this block in dB.',
     'gain':       'Input gain in dB.',
-    'rate':       'Modulation speed — how fast the effect cycles.',
-    'depth':      'Modulation intensity — how pronounced the effect is.',
+    'rate':       'Modulation speed -how fast the effect cycles.',
+    'depth':      'Modulation intensity -how pronounced the effect is.',
     'tone':       'Tonal brightness or color of the effect.',
     'decay':      'How long the effect (reverb tail, sustain) fades out.',
     'pre delay':  'Silent gap before the reverb or delay effect starts.',
     'predelay':   'Silent gap before the reverb or delay effect starts.',
-    'low cut':    'High-pass filter — cuts frequencies below this point.',
-    'high cut':   'Low-pass filter — cuts frequencies above this point.',
-    'lowcut':     'High-pass filter — cuts frequencies below this point.',
-    'highcut':    'Low-pass filter — cuts frequencies above this point.',
-    'lowcut':     'High-pass filter — cuts frequencies below this point.',
-    'hicut':      'Low-pass filter — cuts frequencies above this point.',
+    'low cut':    'Removes low frequencies below this Hz value. Higher value = more bass cut. Useful for mud and rumble.',
+    'high cut':   'Removes high frequencies above this Hz value. Lower value = more treble cut. Useful for harshness and hiss.',
+    'lowcut':     'Removes low frequencies below this Hz value. Higher value = more bass cut. Useful for mud and rumble.',
+    'highcut':    'Removes high frequencies above this Hz value. Lower value = more treble cut. Useful for harshness and hiss.',
+    'hicut':      'Removes high frequencies above this Hz value. Lower value = more treble cut. Useful for harshness and hiss.',
     'spread':     'Stereo width. Higher values push the effect wider in the stereo field.',
     'diffusion':  'How scattered reverb reflections are. Higher = smoother, less distinct.',
-    'damping':    'High-frequency absorption in the reverb tail — simulates softer room surfaces.',
+    'damping':    'High-frequency absorption in the reverb tail -simulates softer room surfaces.',
     'distance':   'Virtual microphone distance from the cabinet.',
-    'er level':   'Early Reflections level — the first bounces before the reverb tail.',
-    'erlevel':    'Early Reflections level — the first bounces before the reverb tail.',
+    'er level':   'Early Reflections level -the first bounces before the reverb tail.',
+    'erlevel':    'Early Reflections level -the first bounces before the reverb tail.',
 
     // Compressor
     'attack':     'How quickly the compressor clamps down after the signal exceeds the threshold.',
     'release':    'How quickly the compressor lets go after the signal drops below the threshold.',
-    'ratio':      'Compression ratio — e.g. 4:1 means 4dB in = 1dB out above the threshold.',
+    'ratio':      'Compression ratio -e.g. 4:1 means 4dB in = 1dB out above the threshold.',
     'threshold':  'Level at which compression begins. Signals above this get compressed.',
     'lo thresh':  'Threshold for the low-frequency compression band.',
     'hi thresh':  'Threshold for the high-frequency compression band.',
@@ -418,19 +424,19 @@ const PARAM_TIPS = {
     'detector':   'Peak vs RMS detection. Peak reacts to transients; RMS averages the signal.',
 
     // Amp
-    'drive':      'Preamp gain — how hard the amp input stage is pushed into saturation.',
-    'master':     'Master volume — power amp stage level after the preamp.',
+    'drive':      'Preamp gain -how hard the amp input stage is pushed into saturation.',
+    'master':     'Master volume -power amp stage level after the preamp.',
     'bass':       'Low-frequency EQ on the amp. Boosts or cuts low end.',
     'mid':        'Midrange EQ on the amp.',
     'treble':     'High-frequency EQ on the amp.',
     'lowmid':     'Low-mid frequency EQ band.',
     'highmid':    'High-mid frequency EQ band.',
-    'sag':        'Power supply sag simulation — how the amp "breathes" under heavy playing. Higher = more vintage feel.',
-    'hum':        'Simulates transformer hum and power supply noise — adds vintage character.',
+    'sag':        'Power supply sag simulation -how the amp "breathes" under heavy playing. Higher = more vintage feel.',
+    'hum':        'Simulates transformer hum and power supply noise -adds vintage character.',
     'ripple':     'AC ripple in the power supply simulation. Affects the amp\'s feel under load.',
-    'bias':       'Tube bias — affects where in the tube\'s operating range the amp runs. Affects headroom and breakup character.',
-    'biasx':      'Bias excursion — how much the bias shifts dynamically with signal level.',
-    'chvol':      'Channel volume — sets the overall output of this amp channel.',
+    'bias':       'Tube bias -affects where in the tube\'s operating range the amp runs. Affects headroom and breakup character.',
+    'biasx':      'Bias excursion -how much the bias shifts dynamically with signal level.',
+    'chvol':      'Channel volume -sets the overall output of this amp channel.',
 
     // Pitch
     'interval1':  'Pitch shift amount in semitones for voice 1. Negative = down, positive = up.',
@@ -441,10 +447,10 @@ const PARAM_TIPS = {
     'levelvoice2':'Output volume of the pitch-shifted voice 2.',
     'pandry':     'Pan position of the dry (unshifted) signal.',
     'panvoice1':  'Pan position of pitch-shifted voice 1.',
-    'time1':      'Pre-delay on the pitch shifted voice — tiny delay before the shift is heard.',
+    'time1':      'Pre-delay on the pitch shifted voice -tiny delay before the shift is heard.',
 
     // Delay
-    'feedback':   'Regeneration — how many repeats you hear. Higher = more repeats, approaching infinite at 100%.',
+    'feedback':   'Regeneration -how many repeats you hear. Higher = more repeats, approaching infinite at 100%.',
     'tempo sync': 'When on, delay time follows the global BPM tempo.',
 
     // Reverb
@@ -460,7 +466,7 @@ const PARAM_TIPS = {
     'volume taper': 'Logarithmic (natural) vs linear volume taper for the pedal sweep.',
 
     // Cabinet
-    'early reflections': 'Level of early reflections — the first echo bounces off the cabinet/room walls.',
+    'early reflections': 'Level of early reflections -the first echo bounces off the cabinet/room walls.',
     'mic':        'Microphone type used to capture the cabinet.',
 };
 
@@ -634,7 +640,7 @@ function chip(block, dspId, clickable = true) {
     const dim    = on ? '' : 'opacity-40';
     const click  = clickable ? `onclick="scrollToBlock('${dspId}','${id}')" style="cursor:pointer"` : '';
 
-    return `<div class="block-chip flex-shrink-0 ${dim}" ${click} title="${info.name} — ${model}">
+    return `<div class="block-chip flex-shrink-0 ${dim}" ${click} title="${info.name} -${model}">
         <div class="${s.bg} border ${s.border} rounded-xl p-2.5 text-center w-24 select-none">
             <div class="w-2 h-2 rounded-full ${on ? s.dot : 'bg-gray-700'} mx-auto mb-1.5"></div>
             <div class="text-xs font-semibold ${s.text} leading-tight">${info.name}</div>
@@ -657,7 +663,7 @@ function arrow() {
 }
 
 function emptyPath() {
-    return `<div class="flex-shrink-0 self-center border border-dashed border-gray-800 rounded-lg px-4 py-2 text-xs text-gray-700">— empty —</div>`;
+    return `<div class="flex-shrink-0 self-center border border-dashed border-gray-800 rounded-lg px-4 py-2 text-xs text-gray-700">-empty —</div>`;
 }
 
 function renderChain(dspId, dspData, topology, label) {
@@ -764,7 +770,7 @@ function detailCard(blockId, blockData, dspId) {
         const fsMom   = fsData['@fs_momentary'] ? ' (Momentary)' : '';
         fsHtml = `<div class="mt-3 pt-3 border-t border-gray-800">
             <div class="text-xs text-gray-600 mb-1">Footswitch</div>
-            <span class="text-sm text-gray-300">FS: ${fsIdx} — ${fsLabel}${fsMom}</span>
+            <span class="text-sm text-gray-300">FS: ${fsIdx} -${fsLabel}${fsMom}</span>
         </div>`;
     }
 
@@ -783,12 +789,20 @@ function detailCard(blockId, blockData, dspId) {
                 <div class="text-xs text-gray-700 mt-0.5 font-mono">${model}</div>
             </div>
             <div class="flex flex-col items-end gap-2 flex-shrink-0">
-                <button onclick="toggleBlock('${dspId}','${blockId}')"
-                    class="text-xs font-bold px-3 py-1 rounded-lg transition-colors
-                        ${on ? 'bg-green-900 text-green-400 hover:bg-red-900 hover:text-red-400'
-                             : 'bg-gray-800 text-gray-500 hover:bg-green-900 hover:text-green-400'}">
-                    ${on ? 'ON' : 'OFF'}
-                </button>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="toggleBlock('${dspId}','${blockId}')"
+                        title="Toggle on/off in active snapshot (block still exists in preset)"
+                        class="text-xs font-bold px-2.5 py-1 rounded-lg transition-colors
+                            ${on ? 'bg-green-900 text-green-400 hover:bg-green-800'
+                                 : 'bg-gray-800 text-gray-500 hover:bg-green-900 hover:text-green-400'}">
+                        ${on ? 'ON' : 'OFF'}
+                    </button>
+                    <button onclick="removeBlock('${dspId}','${blockId}')"
+                        title="Permanently remove block from preset (reduces Stomp block count)"
+                        class="text-xs px-2 py-1 rounded-lg bg-gray-900 text-gray-600 hover:bg-red-950 hover:text-red-400 transition-colors border border-gray-800 hover:border-red-800">
+                        Remove
+                    </button>
+                </div>
                 <div class="text-xs text-gray-700">${dspId.toUpperCase()} · ${blockId}</div>
             </div>
         </div>
@@ -829,6 +843,25 @@ function toggleBlock(dspId, blockId) {
     // Persist to localStorage
     try { localStorage.setItem('hlx_last_preset', JSON.stringify(gPreset)); } catch(e) {}
     // Refresh chain + details
+    refreshChains();
+    renderBlockDetails();
+    document.getElementById('stomp-section').innerHTML = stompBanner();
+}
+
+function removeBlock(dspId, blockId) {
+    if (!confirm(`Remove "${blockId}" from the preset? This reduces the block count for Stomp compatibility. Cannot be undone without reloading the original file.`)) return;
+    const dsp = gPreset?.data?.tone?.[dspId];
+    if (!dsp || !dsp[blockId]) return;
+    delete dsp[blockId];
+    // Also remove from all snapshot block lists
+    const tone = gPreset.data.tone;
+    for (let i = 0; i <= 7; i++) {
+        const snap = tone[`snapshot${i}`];
+        if (snap?.blocks?.[dspId]) delete snap.blocks[dspId][blockId];
+    }
+    // Remove footswitch assignment if any
+    if (tone.footswitch?.[dspId]) delete tone.footswitch[dspId][blockId];
+    try { localStorage.setItem('hlx_last_preset', JSON.stringify(gPreset)); } catch(e) {}
     refreshChains();
     renderBlockDetails();
     document.getElementById('stomp-section').innerHTML = stompBanner();
@@ -914,21 +947,23 @@ function stompBanner() {
         ? `<div class="text-xs mt-1 opacity-80">Incompatible block types detected: ${[...new Set(incompatibleModels)].join(', ')}</div>`
         : '';
 
+    const note = `<div class="text-xs mt-2 opacity-60">Toggling a block OFF does not remove it from the preset. Use the <strong>Remove</strong> button in Block Details to actually delete a block and reduce this count.</div>`;
+
     if (blockCount > STOMP_BLOCK_LIMIT) {
         return `<div class="bg-red-950 border border-red-700 rounded-xl px-4 py-3 text-sm text-red-300">
-            <strong>Not HX Stomp compatible</strong> — ${blockCount} blocks found, Stomp supports max ${STOMP_BLOCK_LIMIT}.
-            Toggle blocks off above and re-export to reduce the count.${modelWarning}
+            <strong>Not HX Stomp compatible</strong> - ${blockCount} blocks present, Stomp supports max ${STOMP_BLOCK_LIMIT}.
+            Use the Remove button in Block Details to delete blocks from the preset, then export.${modelWarning}${note}
         </div>`;
     }
     if (blockCount === STOMP_BLOCK_LIMIT || blockCount === STOMP_BLOCK_LIMIT - 1) {
         return `<div class="bg-amber-950 border border-amber-700 rounded-xl px-4 py-3 text-sm text-amber-300">
-            <strong>Might work on HX Stomp</strong> — ${blockCount}/${STOMP_BLOCK_LIMIT} blocks. Close to the limit;
-            DSP usage depends on which models are used.${modelWarning}
+            <strong>Might work on HX Stomp</strong> - ${blockCount}/${STOMP_BLOCK_LIMIT} blocks present. Close to the limit;
+            actual DSP usage depends on which models are used.${modelWarning}${note}
         </div>`;
     }
     return `<div class="bg-green-950 border border-green-800 rounded-xl px-4 py-3 text-sm text-green-400">
-        <strong>Likely HX Stomp compatible</strong> — ${blockCount}/${STOMP_BLOCK_LIMIT} blocks.
-        Verify DSP headroom on the device.
+        <strong>Likely HX Stomp compatible</strong> - ${blockCount}/${STOMP_BLOCK_LIMIT} blocks present.
+        Verify actual DSP headroom on the device.${note}
     </div>`;
 }
 
@@ -959,11 +994,10 @@ function renderSnapshots(tone) {
                         ${isCur ? 'bg-amber-950 border-amber-600':'bg-gray-900 border-gray-800'}"
                     onclick="switchSnapshot(${snap.idx})">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs font-black w-4 text-center rounded ${isCur?'text-amber-400':'text-gray-600'}">${snap.idx+1}</span>
+                    <span class="text-xs font-black w-5 text-center rounded ${isCur?'text-amber-400':'text-gray-600'}">${isCur ? '&#9654;' : snap.idx+1}</span>
                     <span class="text-sm font-semibold truncate ${isCur?'text-white':'text-gray-400'}">${name}</span>
                 </div>
                 <div class="text-xs text-gray-600">${tempo} BPM · ${on}/${total} blocks on</div>
-                ${isCur ? '<div class="text-xs text-amber-500 mt-1">▶ Active</div>' : ''}
             </div>`;
         }).join('')}
         </div>
@@ -987,7 +1021,7 @@ function switchSnapshot(idx) {
     const snapName = tone[`snapshot${idx}`]?.['@name'] || `Snapshot ${idx+1}`;
     const snapTempo = tone[`snapshot${idx}`]?.['@tempo'] || globalTone['@tempo'] || 120;
     const snapEl = document.getElementById('active-snap-label');
-    if (snapEl) snapEl.textContent = `${idx+1} — ${snapName}`;
+    if (snapEl) snapEl.textContent = `${idx+1} -${snapName}`;
     const tempoEl = document.getElementById('active-snap-tempo');
     if (tempoEl) tempoEl.textContent = `${snapTempo} BPM`;
 }
@@ -1016,8 +1050,14 @@ function renderIRSlots(data) {
         }
     }
 
-    return `<div>
-        <h2 class="text-xl font-bold text-white mb-4">IR Slots</h2>
+    return `<details class="group">
+        <summary class="cursor-pointer list-none flex items-center gap-2 mb-0">
+            <h2 class="text-xl font-bold text-white">IR Slots</h2>
+            <span class="text-xs text-gray-600">(${used.length} used)</span>
+            <span class="text-gray-600 text-sm group-open:hidden">&#9660; show</span>
+            <span class="text-gray-600 text-sm hidden group-open:inline">&#9650; hide</span>
+        </summary>
+        <div class="mt-3">
         <p class="text-xs text-gray-600 mb-3">Impulse Response UUIDs loaded in this preset. You'll need these if transferring the preset to a new device.</p>
         <div class="space-y-2">
         ${used.map(([slot, uuid]) => {
@@ -1030,7 +1070,8 @@ function renderIRSlots(data) {
             </div>`;
         }).join('')}
         </div>
-    </div>`;
+        </div>
+    </details>`;
 }
 
 // ================================================================
@@ -1074,7 +1115,7 @@ function renderMidi(data) {
             if (a.cc !== undefined) {
                 return `<div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-sm flex flex-wrap gap-4 items-center">
                     <span class="text-amber-400 font-mono">CC ${a.cc}</span>
-                    <span class="text-gray-300">${a.blockName} — ${a.param}</span>
+                    <span class="text-gray-300">${a.blockName} -${a.param}</span>
                     ${a.min !== undefined ? `<span class="text-gray-600 text-xs">range: ${a.min} → ${a.max}</span>` : ''}
                     <span class="text-gray-700 text-xs">${a.dspId} ${a.blockId}</span>
                 </div>`;
@@ -1175,7 +1216,7 @@ function renderPreset(data) {
             </div>
             <div class="text-right">
                 <div class="text-xs text-gray-600">Active Snapshot</div>
-                <div class="text-lg font-bold text-amber-400" id="active-snap-label">${gActiveSnapshot+1} — ${snapName}</div>
+                <div class="text-lg font-bold text-amber-400" id="active-snap-label">${gActiveSnapshot+1} -${snapName}</div>
                 <div class="text-xs text-gray-600" id="active-snap-tempo">${globalTone['@tempo']||120} BPM</div>
                 <div class="flex gap-2 mt-2 no-print">
                     <button onclick="exportPreset()"
@@ -1234,7 +1275,7 @@ function loadFile(file) {
     reader.onload = e => {
         try {
             const data = JSON.parse(e.target.result);
-            if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset — missing L6Preset schema tag.');
+            if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset -missing L6Preset schema tag.');
             renderPreset(data);
         } catch(err) {
             showErr(err.message || 'Could not parse the file.');
