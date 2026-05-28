@@ -189,6 +189,19 @@
     </div>
 </div>
 
+<!-- ── RAW JSON MODAL ─────────────────────────────────────────── -->
+<div id="modal-raw" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/80" onclick="closeRaw()"></div>
+    <div class="relative bg-gray-950 border border-gray-700 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
+            <span class="text-sm font-bold text-white">Raw Preset JSON</span>
+            <button onclick="closeRaw()" class="text-gray-500 hover:text-white text-sm px-2 py-1">Close</button>
+        </div>
+        <pre id="raw-json-content"
+             class="overflow-auto flex-1 text-xs leading-relaxed px-5 py-4 font-mono whitespace-pre"></pre>
+    </div>
+</div>
+
 <script>
 // ================================================================
 // MODEL DATABASE
@@ -700,10 +713,11 @@ function buildChain(dspData, topology) {
 // CHIP (signal chain visual block)
 // ================================================================
 
-let gPreset          = null;
-let gActiveSnapshot  = 0;
-let gRemovedBlocks   = new Set(); // "dspId:blockId"
-let gRemovedDSPs     = new Set(); // "dspId"
+let gPreset           = null;
+let gActiveSnapshot   = 0;
+let gRemovedBlocks    = new Set(); // "dspId:blockId"
+let gRemovedDSPs      = new Set(); // "dspId"
+let gEditedControllers = new Set(); // "dspId:blockId:paramName:field"
 
 function isBlockRemoved(dspId, blockId) {
     return gRemovedDSPs.has(dspId) || gRemovedBlocks.has(`${dspId}:${blockId}`);
@@ -956,6 +970,54 @@ function detailCard(blockId, blockData, dspId) {
                 </div>`;
             }).join('')}
         </div>` : ''}
+        ${(() => {
+            if (removed) return '';
+            const ctrlBlock = gPreset?.data?.tone?.controller?.[dspId]?.[blockId];
+            if (!ctrlBlock) return '';
+            const rows = Object.entries(ctrlBlock).map(([paramName, ctrl]) => {
+                if (!ctrl || typeof ctrl !== 'object') return '';
+                const ctrlNum = ctrl['@controller'];
+                const minVal  = ctrl['@min'];
+                const maxVal  = ctrl['@max'];
+                if (minVal === undefined || maxVal === undefined) return '';
+                const label   = ctrlLabel(ctrlNum);
+                const pLabel  = fmtParamName(paramName) || paramName;
+                // Boolean = footswitch toggle, not editable as a sweep
+                if (typeof minVal === 'boolean' || typeof maxVal === 'boolean') {
+                    return `<div class="flex items-center gap-2 text-xs">
+                        <span class="text-gray-500 w-24 truncate" title="${pLabel}">${pLabel}</span>
+                        <span class="bg-gray-800 border border-gray-700 text-gray-500 px-1.5 py-0.5 rounded text-xs">${label}</span>
+                        <span class="text-gray-700">Toggle (on/off switch, not sweepable)</span>
+                    </div>`;
+                }
+                const isNorm = minVal >= 0 && minVal <= 1 && maxVal >= 0 && maxVal <= 1;
+                const step   = isNorm ? '0.01' : 'any';
+                const hint   = isNorm ? '<span class="text-gray-700 text-xs">0–1</span>' : '';
+                const minKey = `${dspId}:${blockId}:${paramName}:@min`;
+                const maxKey = `${dspId}:${blockId}:${paramName}:@max`;
+                const minCls = gEditedControllers.has(minKey) ? 'border-amber-500 text-amber-300' : 'border-gray-700 text-gray-200';
+                const maxCls = gEditedControllers.has(maxKey) ? 'border-amber-500 text-amber-300' : 'border-gray-700 text-gray-200';
+                return `<div class="flex items-center gap-2 flex-wrap text-xs">
+                    <span class="text-gray-400 w-24 truncate" title="${pLabel}">${pLabel}</span>
+                    <span class="bg-amber-900/40 border border-amber-800/50 text-amber-400 px-1.5 py-0.5 rounded">${label}</span>
+                    <label class="text-gray-600">min</label>
+                    <input type="number" step="${step}" value="${minVal}"
+                        class="w-20 bg-gray-900 border ${minCls} rounded px-2 py-0.5 text-xs focus:outline-none focus:border-amber-500"
+                        oninput="updateCtrl('${dspId}','${blockId}','${paramName}','@min',this.value,this)">
+                    <label class="text-gray-600">max</label>
+                    <input type="number" step="${step}" value="${maxVal}"
+                        class="w-20 bg-gray-900 border ${maxCls} rounded px-2 py-0.5 text-xs focus:outline-none focus:border-amber-500"
+                        oninput="updateCtrl('${dspId}','${blockId}','${paramName}','@max',this.value,this)">
+                    ${hint}
+                </div>`;
+            }).filter(Boolean).join('');
+            if (!rows) return '';
+            return `<div class="mt-3 pt-3 border-t border-gray-800">
+                <div class="text-xs text-gray-600 mb-2">Controller Assignments</div>
+                <div class="space-y-2">${rows}</div>
+                <p class="text-xs text-gray-700 mt-2">Edited values are saved on export. Out-of-range values are clamped by the controller hardware.</p>
+            </div>`;
+        })()}
         ${fsHtml}
     </div>`;
 }
@@ -1004,6 +1066,22 @@ function toggleRemoveDSP(dspId) {
     refreshChains();
     renderBlockDetails();
     document.getElementById('stomp-section').innerHTML = stompBanner();
+}
+
+function ctrlLabel(n) {
+    return {1:'EXP 1', 2:'EXP 2', 3:'EXP 3'}[n] || `Ctrl ${n}`;
+}
+
+function updateCtrl(dspId, blockId, paramName, field, rawValue, el) {
+    const ctrl = gPreset?.data?.tone?.controller?.[dspId]?.[blockId]?.[paramName];
+    if (!ctrl) return;
+    const parsed = parseFloat(rawValue);
+    if (isNaN(parsed)) return;
+    ctrl[field] = parsed;
+    const key = `${dspId}:${blockId}:${paramName}:${field}`;
+    gEditedControllers.add(key);
+    el.classList.remove('border-gray-700','text-gray-200');
+    el.classList.add('border-amber-500','text-amber-300');
 }
 
 function buildExportData() {
@@ -1257,49 +1335,48 @@ function renderIRSlots(data) {
 // ================================================================
 
 function renderMidi(data) {
-    const assignments = [];
-    for (const dspId of ['dsp0','dsp1']) {
-        const dsp = data.data?.tone?.[dspId];
-        if (!dsp) continue;
-        for (const [blockId, blk] of Object.entries(dsp)) {
-            if (!blk || typeof blk !== 'object') continue;
-            // Controller assignments are stored as @controller_X keys or nested objects
-            for (const [key, val] of Object.entries(blk)) {
-                if (key.startsWith('@') && key.includes('controller')) {
-                    assignments.push({ dspId, blockId, key, val });
-                }
-                // Some presets use nested controller map
-                if (typeof val === 'object' && val !== null && val['@cc'] !== undefined) {
-                    const info = lookupModel(blk['@model'] || '');
-                    assignments.push({
-                        dspId, blockId,
-                        param: fmtParamName(key) || key,
-                        cc: val['@cc'],
-                        min: val['@min'],
-                        max: val['@max'],
-                        blockName: info.name,
-                    });
-                }
+    const tone = data.data?.tone;
+    const ctrlMap = tone?.controller;
+    if (!ctrlMap) return '';
+
+    const rows = [];
+    for (const [dspId, dspBlocks] of Object.entries(ctrlMap)) {
+        const dsp = tone[dspId];
+        for (const [blockId, params] of Object.entries(dspBlocks)) {
+            const blk  = dsp?.[blockId];
+            const info = blk ? lookupModel(blk['@model'] || '') : { name: blockId };
+            for (const [paramName, ctrl] of Object.entries(params)) {
+                if (!ctrl || typeof ctrl !== 'object') continue;
+                const ctrlNum = ctrl['@controller'];
+                if (ctrlNum === undefined) continue;
+                const minVal = ctrl['@min'];
+                const maxVal = ctrl['@max'];
+                const isToggle = typeof minVal === 'boolean' || typeof maxVal === 'boolean';
+                rows.push({ dspId, blockId, paramName, ctrlNum, minVal, maxVal, isToggle, blockName: info.name });
             }
         }
     }
 
-    if (!assignments.length) return '';
+    if (!rows.length) return '';
 
     return `<div>
-        <h2 class="text-xl font-bold text-white mb-4">MIDI / Controller Assignments</h2>
+        <h2 class="text-xl font-bold text-white mb-1">Controller Assignments</h2>
+        <p class="text-xs text-gray-600 mb-4">Edit min/max values in Block Details below. Amber = edited.</p>
         <div class="space-y-2">
-        ${assignments.map(a => {
-            if (a.cc !== undefined) {
-                return `<div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-sm flex flex-wrap gap-4 items-center">
-                    <span class="text-amber-400 font-mono">CC ${a.cc}</span>
-                    <span class="text-gray-300">${a.blockName} -${a.param}</span>
-                    ${a.min !== undefined ? `<span class="text-gray-600 text-xs">range: ${a.min} → ${a.max}</span>` : ''}
-                    <span class="text-gray-700 text-xs">${a.dspId} ${a.blockId}</span>
-                </div>`;
-            }
-            return '';
-        }).filter(Boolean).join('') || '<div class="text-sm text-gray-600">No MIDI CC assignments found in this preset.</div>'}
+        ${rows.map(r => {
+            const label = ctrlLabel(r.ctrlNum);
+            const pLabel = fmtParamName(r.paramName) || r.paramName;
+            const rangeHtml = r.isToggle
+                ? `<span class="text-gray-600 text-xs">toggle</span>`
+                : `<span class="text-gray-600 text-xs">${r.minVal} → ${r.maxVal}</span>`;
+            return `<div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-sm flex flex-wrap gap-4 items-center">
+                <span class="bg-amber-900/40 border border-amber-800/50 text-amber-400 text-xs px-2 py-0.5 rounded font-mono">${label}</span>
+                <span class="text-gray-300">${r.blockName}</span>
+                <span class="text-gray-500">${pLabel}</span>
+                ${rangeHtml}
+                <span class="text-gray-700 text-xs ml-auto">${r.dspId} ${r.blockId}</span>
+            </div>`;
+        }).join('')}
         </div>
     </div>`;
 }
@@ -1368,6 +1445,7 @@ function renderPreset(data) {
     gPreset = data;
     gRemovedBlocks.clear();
     gRemovedDSPs.clear();
+    gEditedControllers.clear();
     const tone = data.data?.tone || {};
     const meta = data.data?.meta || {};
     const globalTone = tone.global || {};
@@ -1402,6 +1480,10 @@ function renderPreset(data) {
                     <button onclick="exportPreset()"
                         class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
                         Export .hlx
+                    </button>
+                    <button onclick="openRaw()"
+                        class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
+                        Raw JSON
                     </button>
                     <button onclick="window.print()"
                         class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
@@ -1525,6 +1607,37 @@ function closeRateLimit() {
 }
 
 // ================================================================
+// RAW JSON MODAL
+// ================================================================
+
+function syntaxHighlight(json) {
+    return json.replace(
+        /("(?:\\.|[^"\\])*"(?=\s*:))|("(?:\\.|[^"\\])*")|(\b-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)|(\btrue\b|\bfalse\b)|(\bnull\b)|([{}\[\],])/g,
+        (_, key, str, num, bool, nil, punct) => {
+            if (key)   return `<span class="text-sky-300">${key}</span>`;
+            if (str)   return `<span class="text-green-400">${str}</span>`;
+            if (num)   return `<span class="text-amber-300">${num}</span>`;
+            if (bool)  return `<span class="text-purple-400">${bool}</span>`;
+            if (nil)   return `<span class="text-gray-500">${nil}</span>`;
+            if (punct) return `<span class="text-gray-500">${punct}</span>`;
+            return _;
+        }
+    );
+}
+
+function openRaw() {
+    if (!gPreset) return;
+    const json = JSON.stringify(gPreset, null, 2);
+    const el   = document.getElementById('raw-json-content');
+    el.innerHTML = syntaxHighlight(json);
+    document.getElementById('modal-raw').classList.remove('hidden');
+}
+
+function closeRaw() {
+    document.getElementById('modal-raw').classList.add('hidden');
+}
+
+// ================================================================
 // ABOUT MODAL
 // ================================================================
 document.getElementById('btn-about').addEventListener('click', () => {
@@ -1534,7 +1647,7 @@ function closeAbout() {
     document.getElementById('modal-about').classList.add('hidden');
 }
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeAbout(); closeRateLimit(); }
+    if (e.key === 'Escape') { closeAbout(); closeRateLimit(); closeRaw(); }
 });
 
 // ================================================================
