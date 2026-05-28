@@ -209,7 +209,7 @@
     <div class="absolute inset-0 bg-black/80" onclick="closeRaw()"></div>
     <div class="relative bg-gray-950 border border-gray-700 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
         <div class="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
-            <span class="text-sm font-bold text-white">Raw Preset JSON</span>
+            <span class="text-sm font-bold text-white">Imported JSON <span class="text-gray-500 font-normal text-xs">(as-imported, before edits)</span></span>
             <button onclick="closeRaw()" class="text-gray-500 hover:text-white text-sm px-2 py-1">Close</button>
         </div>
         <pre id="raw-json-content"
@@ -1412,7 +1412,7 @@ function renderMidi(data) {
 
     return `<div>
         <h2 class="text-xl font-bold text-white mb-1">Controller Assignments</h2>
-        <p class="text-xs text-gray-600 mb-4">Edit min/max values in Block Details below. Amber = edited.</p>
+        <p class="text-xs text-gray-600 mb-4">Read only — shows controller and expression pedal mappings as defined in the preset.</p>
         <div class="space-y-2">
         ${rows.map(r => {
             const label = ctrlLabel(r.ctrlNum);
@@ -1460,7 +1460,8 @@ function renderFootswitches(tone) {
     unique.sort((a,b) => a.idx - b.idx);
 
     return `<div>
-        <h2 class="text-xl font-bold text-white mb-4">Footswitches</h2>
+        <h2 class="text-xl font-bold text-white mb-1">Footswitches</h2>
+        <p class="text-xs text-gray-600 mb-4">Read only — for reference only, footswitch assignments cannot be edited here.</p>
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         ${unique.map(f => `
             <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 cursor-pointer hover:border-gray-600 transition-colors"
@@ -1529,17 +1530,13 @@ function renderPreset(data) {
                 <div class="text-lg font-bold text-amber-400" id="active-snap-label">${gActiveSnapshot+1} -${snapName}</div>
                 <div class="text-xs text-gray-600" id="active-snap-tempo">${globalTone['@tempo']||120} BPM</div>
                 <div class="flex gap-2 mt-2 no-print">
+                    <button onclick="openRaw()"
+                        class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
+                        View Imported JSON
+                    </button>
                     <button onclick="exportPreset()"
                         class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
                         Export .hlx
-                    </button>
-                    <button onclick="openRaw()"
-                        class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
-                        Raw JSON
-                    </button>
-                    <button onclick="window.print()"
-                        class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-3 py-1 rounded-lg transition-colors">
-                        Print
                     </button>
                 </div>
             </div>
