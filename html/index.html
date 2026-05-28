@@ -1019,19 +1019,21 @@ function toggleBlock(dspId, blockId) {
     const block = gPreset?.data?.tone?.[dspId]?.[blockId];
     if (!block) return;
     const wasOn = snapEnabled(blockId, dspId, block['@enabled'] !== false);
-    // Update base state
-    block['@enabled'] = !wasOn;
-    // Update active snapshot override if it tracks this block
+
+    // Write to the ACTIVE SNAPSHOT only — never mutate base block['@enabled'],
+    // otherwise toggling in one snapshot changes the fallback for all others.
     const snap = gPreset.data.tone[`snapshot${gActiveSnapshot}`];
-    if (snap?.blocks?.[dspId] && blockId in snap.blocks[dspId]) {
+    if (snap) {
+        if (!snap.blocks)        snap.blocks        = {};
+        if (!snap.blocks[dspId]) snap.blocks[dspId] = {};
         snap.blocks[dspId][blockId] = !wasOn;
     }
-    // Persist to localStorage
+
     try { localStorage.setItem('hlx_last_preset', JSON.stringify(gPreset)); } catch(e) {}
-    // Refresh chain + details
     refreshChains();
     renderBlockDetails();
-    document.getElementById('stomp-section').innerHTML = stompBanner();
+    document.getElementById('stomp-section').innerHTML    = stompBanner();
+    document.getElementById('snapshots-section').innerHTML = renderSnapshots(gPreset.data.tone);
 }
 
 function toggleRemoveBlock(dspId, blockId) {

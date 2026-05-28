@@ -73,6 +73,7 @@ Use the docker-compose above, or add the container manually:
 
 - **Image:** `ghcr.io/adman234/helix-viewer:latest`
 - **Port:** `7860:80`
+- **Volume:** Map container path `/uploads` to a host path (e.g. `/mnt/user/appdata/helix/uploads`) to persist uploaded and exported preset files.
 
 ### Running locally (no Docker)
 
