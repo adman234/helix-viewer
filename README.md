@@ -4,7 +4,7 @@ A free, open-source visualizer for Line 6 Helix / HX Stomp / HX Effects preset f
 
 Upload a preset file to explore its signal chain, block parameters, snapshots, footswitch assignments, IR slots, and MIDI/controller mappings — all in your browser, no account required.
 
-![Screenshot placeholder](https://github.com/adman234/helix-viewer)
+![Screenshot](Screenshot.png)
 
 ---
 
