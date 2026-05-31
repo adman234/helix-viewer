@@ -1841,7 +1841,7 @@ const L6T_MODEL_MAP = {
 // Per-model parameter names derived from l6t-rs podxt.rs slot definitions
 const L6T_MODEL_PARAMS = {
     0x020C0002:{0x100000:'Band 1 Freq',0x100001:'Band 1 Gain',0x100002:'Band 2 Freq',0x100003:'Band 2 Gain',0x100004:'Band 3 Freq',0x100005:'Band 3 Gain',0x100006:'Band 4 Freq',0x100007:'Band 4 Gain'},
-    0x020B0000:{0x100000:'Threshold',0x100001:'Decay'},
+    0x020B0000:{0:'Threshold',3:'Decay'}, // gate uses raw paramIds 0 and 3 (NOT 0x100000)
     0x020B0001:{0x100000:'Threshold',0x100001:'Gain'},
     0x020B0002:{0x100000:'Room'},
     0x02070000:{0x100004:'Min Volume'},
@@ -1945,6 +1945,36 @@ const L6T_SLOT_PARAMS = {
 
 function l6tParamName(modelId, slotId, paramId) {
     return L6T_MODEL_PARAMS[modelId]?.[paramId] ?? L6T_SLOT_PARAMS[slotId]?.[paramId] ?? null;
+}
+
+function l6tFmtValue(modelId, paramId, typeFlag, value) {
+    if (typeFlag !== 1) return String(value);
+
+    // Noise Gate threshold: stored as raw dB float (NOT 0-1 normalised)
+    if (modelId === 0x020B0000 && paramId === 0) return `${Math.round(value)} dB`;
+
+    // Compressor: linear 0..1 → dB
+    if (modelId === 0x020B0001) {
+        if (paramId === 0x100000) return `${Math.round(63 * value - 63)} dB`; // Threshold
+        if (paramId === 0x100001) return `${Math.round(16 * value)} dB`;       // Gain
+    }
+
+    // 4-Band EQ gains (odd paramIds 0x100001/3/5/7): linear 0..1 = -12.8..12.6 dB
+    if (modelId === 0x020C0002 && (paramId & 1) === 1 && paramId <= 0x100007) {
+        return `${(25.4 * value - 12.8).toFixed(1)} dB`;
+    }
+
+    // Modulation Speed (all 0x0203XXXX models, paramId 0x100000): 0..1 = 0.1..15.0 Hz
+    if ((modelId >>> 16) === 0x0203 && paramId === 0x100000) {
+        return `${(0.1 + value * 14.9).toFixed(2)} Hz`;
+    }
+
+    // Delay Time (all 0x0202XXXX models, paramId 0x100000): 0..1 = 20..2000 ms
+    if ((modelId >>> 16) === 0x0202 && paramId === 0x100000) {
+        return `${Math.round(20 + value * 1980)} ms`;
+    }
+
+    return `${Math.round(value * 100)}%`;
 }
 
 function l6tSlotOrder(slotId) {
@@ -2128,7 +2158,7 @@ function renderL6TPreset(data) {
         });
         const paramRows = visParams.map(p => {
             const label = l6tParamName(b.modelId, b.slotId, p.paramId) || `Param ${p.paramId & 0xFF}`;
-            const val   = p.typeFlag === 1 ? `${Math.round(p.value * 100)}%` : String(p.value);
+            const val   = l6tFmtValue(b.modelId, p.paramId, p.typeFlag, p.value);
             return `<div class="flex justify-between text-xs py-0.5 border-b border-gray-800/50">
                 <span class="text-gray-500">${label}</span>
                 <span class="text-gray-300 font-mono">${val}</span>
