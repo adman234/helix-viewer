@@ -1838,11 +1838,114 @@ const L6T_MODEL_MAP = {
     0x02060006:{name:'Conductor',     cat:'wah'}, 0x02060007:{name:'Colorful',    cat:'wah'},
 };
 
-const L6T_PARAM_NAMES = {
-    0x100000:'Speed', 0x100001:'Param 1', 0x100002:'Param 2',
-    0x100003:'Param 3', 0x100004:'Param 4', 0x100005:'Param 5',
-    0x010001:'Level', 0x010002:'DI Xover',
+// Per-model parameter names derived from l6t-rs podxt.rs slot definitions
+const L6T_MODEL_PARAMS = {
+    0x020C0002:{0x100000:'Band 1 Freq',0x100001:'Band 1 Gain',0x100002:'Band 2 Freq',0x100003:'Band 2 Gain',0x100004:'Band 3 Freq',0x100005:'Band 3 Gain',0x100006:'Band 4 Freq',0x100007:'Band 4 Gain'},
+    0x020B0000:{0x100000:'Threshold',0x100001:'Decay'},
+    0x020B0001:{0x100000:'Threshold',0x100001:'Gain'},
+    0x020B0002:{0x100000:'Room'},
+    0x02070000:{0x100004:'Min Volume'},
+    // Stomp — distortion/OD
+    0x02050000:{0x100001:'Drive',0x100002:'Gain',0x100003:'Tone'},
+    0x02050001:{0x100001:'Drive',0x100002:'Treble',0x100003:'Mid'},
+    0x02050002:{0x100001:'Drive',0x100002:'Gain',0x100003:'Tone'},
+    0x02050003:{0x100001:'Drive',0x100002:'Gain',0x100003:'Tone'},
+    0x02050004:{0x100001:'Drive',0x100002:'Gain',0x100003:'Tone'},
+    0x02050005:{0x100001:'Drive',0x100002:'Gain',0x100003:'Tone'},
+    0x02050006:{0x100001:'Drive',0x100002:'Contour',0x100004:'Mid',0x100005:'Mid Freq'},
+    0x02050007:{0x100001:'Gain',0x100002:'Bass',0x100003:'Mid',0x100004:'Treble',0x100005:'Mid Freq'},
+    0x02050008:{0x100001:'Bass',0x100002:'Treble',0x100003:'Drive',0x100004:'Gain'},
+    0x02050009:{0x100001:'Drive',0x100002:'Tone',0x100004:'Blend'},
+    // Stomp — dynamics
+    0x02000002:{0x100001:'Sustain',0x100002:'Level'},
+    0x02000003:{0x100001:'Level',0x100002:'Sustain'},
+    0x02000004:{0x100001:'Sustain',0x100002:'Level'},
+    0x02000005:{0x100001:'Sens',0x100002:'Level'},
+    0x02000006:{0x100001:'Amount',0x100002:'Level'},
+    0x02000007:{0x100001:'Ramp',0x100002:'Depth'},
+    // Stomp — filter/synth
+    0x020A0000:{0x100001:'Sens',0x100002:'Q'},
+    0x020A0001:{0x100001:'Wave',0x100002:'Filter',0x100003:'Decay',0x100004:'Mix'},
+    0x020A0002:{0x100001:'Wave',0x100002:'Filter',0x100003:'Decay',0x100004:'Mix'},
+    0x020A0003:{0x100001:'Wave',0x100002:'Filter',0x100003:'Decay',0x100004:'Mix'},
+    0x020A0004:{0x100001:'Wave',0x100002:'Filter',0x100003:'Decay',0x100004:'Mix'},
+    0x020A0005:{0x100001:'Wave',0x100002:'Filter',0x100003:'Decay',0x100004:'Mix'},
+    0x020A0006:{0x100001:'Wave',0x100002:'Filter',0x100003:'Decay',0x100004:'Mix'},
+    0x020A0007:{0x100001:'Wave',0x100004:'Mix'},
+    0x020A0008:{0x100001:'1 Oct Gain',0x100002:'2 Oct Gain',0x100004:'Mix'},
+    0x020A0009:{0x100001:'Interval 1',0x100002:'Interval 2',0x100003:'Wave',0x100004:'Mix'},
+    0x020A000A:{0x100002:'Sens',0x100004:'Mix'},
+    0x020A000B:{0x100001:'Decay',0x100002:'Sens',0x100004:'Mix'},
+    0x020A000C:{0x100001:'Wave',0x100004:'Mix'},
+    0x020A000D:{0x100001:'1 Oct Gain',0x100002:'2 Oct Gain',0x100004:'Mix'},
+    0x020A000E:{0x100001:'Position',0x100002:'Heel',0x100003:'Toe',0x100004:'Mix'},
+    // Modulation
+    0x02030004:{0x100000:'Speed',0x100001:'Depth',0x100002:'Bass',0x100003:'Treble',0x100004:'Mix'},
+    0x02030005:{0x100000:'Speed',0x100001:'Depth',0x100002:'Bass',0x100003:'Treble',0x100004:'Mix'},
+    0x02030006:{0x100000:'Speed',0x100001:'Depth',0x100004:'Mix'},
+    0x02030007:{0x100000:'Speed',0x100001:'Depth',0x100002:'Feedback',0x100003:'Manual',0x100004:'Mix'},
+    0x02030008:{0x100000:'Speed',0x100001:'Feedback',0x100004:'Mix'},
+    0x02030009:{0x100000:'Speed',0x100001:'Feedback',0x100004:'Mix'},
+    0x0203000A:{0x100000:'Speed',0x100001:'Wave',0x100004:'Mix'},
+    0x0203000B:{0x100000:'Speed',0x100001:'Wave',0x100004:'Mix'},
+    0x0203000C:{0x100000:'Speed',0x100002:'Tone',0x100004:'Mix'},
+    0x0203000D:{0x100000:'Speed',0x100002:'Tone',0x100004:'Mix'},
+    0x0203000E:{0x100000:'Speed',0x100001:'Wave',0x100004:'Mix'},
+    0x02030011:{0x100000:'Speed',0x100001:'Depth',0x100002:'Bass',0x100003:'Treble',0x100004:'Mix'},
+    0x02030012:{0x100000:'Speed',0x100001:'Depth',0x100002:'Pre-Delay',0x100003:'Feedback',0x100004:'Mix'},
+    0x02030013:{0x100000:'Speed',0x100001:'Depth',0x100002:'Pre-Delay',0x100003:'Feedback',0x100004:'Mix'},
+    0x02030014:{0x100000:'Speed',0x100001:'Depth',0x100002:'Bass',0x100003:'Treble',0x100004:'Mix'},
+    0x02030015:{0x100000:'Speed',0x100001:'Depth',0x100002:'Bass',0x100003:'Treble',0x100004:'Mix'},
+    0x02030017:{0x100000:'Speed',0x100001:'Feedback',0x100002:'Depth',0x100004:'Mix'},
+    0x02030018:{0x100000:'Speed',0x100001:'Depth',0x100002:'Q',0x100004:'Mix'},
+    0x02030019:{0x100000:'Speed',0x100001:'Feedback',0x100002:'Flutter',0x100003:'Distortion',0x100004:'Mix'},
+    0x0203001A:{0x100000:'Speed',0x100001:'Depth',0x100002:'Q',0x100003:'Freq',0x100004:'Mix'},
+    0x0203001B:{0x100000:'Speed',0x100001:'Depth',0x100002:'Q',0x100004:'Mix'},
+    0x0203001C:{0x100000:'Speed',0x100001:'Depth',0x100002:'Q',0x100004:'Mix'},
+    0x0203001E:{0x100000:'Speed',0x100001:'Depth',0x100002:'Pre-Delay',0x100003:'Feedback',0x100004:'Mix'},
+    0x0203001F:{0x100000:'Speed',0x100001:'Depth',0x100002:'Pre-Delay',0x100003:'Feedback',0x100004:'Mix'},
+    // Delay (Mix is 0x010001, not 0x100004)
+    0x02020002:{0x100000:'Time',0x100001:'Feedback',0x100002:'Bass',0x100003:'Treble',0x010001:'Mix',0x010002:'DI Xover'},
+    0x02020003:{0x100000:'Time',0x100001:'Feedback',0x100002:'Mod Speed',0x100003:'Depth',0x010001:'Mix',0x010002:'DI Xover'},
+    0x02020004:{0x100000:'Time',0x100001:'Feedback',0x100002:'Flutter',0x100003:'Drive',0x010001:'Mix',0x010002:'DI Xover'},
+    0x02020005:{0x100000:'Time',0x100001:'Feedback',0x100002:'Heads',0x100003:'Flutter',0x010001:'Mix',0x010002:'DI Xover'},
+    0x02020006:{0x100000:'Time',0x100001:'Feedback',0x100002:'Speed',0x100003:'Depth',0x010001:'Mix',0x010002:'DI Xover'},
+    0x02020007:{0x100000:'Time',0x100001:'Feedback',0x100002:'Bass',0x100003:'Treble',0x010001:'Mix',0x010002:'DI Xover'},
+    0x02020008:{0x100000:'Time',0x100001:'Offset',0x100002:'Feedback L',0x100003:'Feedback R',0x010001:'Mix',0x010002:'DI Xover'},
+    0x02020009:{0x100000:'Time',0x100001:'Feedback',0x100002:'Offset',0x100003:'Spread',0x010001:'Mix',0x010002:'DI Xover'},
+    0x0202000A:{0x100000:'Time',0x100001:'Feedback',0x010001:'Mix',0x010002:'DI Xover'},
+    0x0202000B:{0x100000:'Time',0x100001:'Feedback',0x100002:'Bass',0x100003:'Treble',0x010001:'Mix',0x010002:'DI Xover'},
+    0x0202000C:{0x100000:'Time',0x100001:'Feedback',0x100002:'Heads',0x100003:'Flutter',0x010001:'Mix',0x010002:'DI Xover'},
+    0x0202000D:{0x100000:'Time',0x100001:'Feedback',0x100002:'Tone',0x100003:'Bits',0x010001:'Mix',0x010002:'DI Xover'},
+    0x0202000E:{0x100000:'Time',0x100001:'Feedback',0x100002:'Mod Speed',0x100003:'Depth',0x010001:'Mix',0x010002:'DI Xover'},
+    0x0202000F:{0x100000:'Time',0x100001:'Feedback',0x100002:'Speed',0x100003:'Depth',0x010001:'Mix',0x010002:'DI Xover'},
+    // Reverb springs (Mix at 0x010002)
+    0x02040002:{0x100000:'Dwell',0x100002:'Tone',0x010002:'Mix'},
+    0x02040003:{0x100000:'Dwell',0x100002:'Tone',0x010002:'Mix'},
+    0x02040004:{0x100000:'Dwell',0x100002:'Tone',0x010002:'Mix'},
+    // Reverb rooms/halls/plates
+    0x02040005:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x02040006:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x02040007:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x02040008:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x02040009:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x0204000A:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x0204000B:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x0204000C:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x0204000D:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x0204000E:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x0204000F:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
+    0x02040010:{0x100001:'Pre-Delay',0x100000:'Decay',0x100002:'Tone',0x010002:'Mix'},
 };
+
+// Slot-level params for blocks where model_id varies (e.g. amp channel)
+const L6T_SLOT_PARAMS = {
+    0x00030000:{0x100003:'Drive',0x100000:'Bass',0x100001:'Mid',0x100002:'Treble',0x100004:'Presence',0x100005:'Volume'},
+};
+
+function l6tParamName(modelId, slotId, paramId) {
+    return L6T_MODEL_PARAMS[modelId]?.[paramId] ?? L6T_SLOT_PARAMS[slotId]?.[paramId] ?? null;
+}
 
 function l6tSlotOrder(slotId) {
     const o = {
@@ -2017,12 +2120,14 @@ function renderL6TPreset(data) {
     // ── Block detail cards
     const cards = blocks.map(b => {
         const s = l6tCatStyle(b.cat);
-        const visParams = b.params.filter(p =>
-            (p.paramId >= 0x100000 && p.paramId <= 0x10000F) ||
-            p.paramId === 0x010001 || p.paramId === 0x010002
-        );
+        const hasKnown = L6T_MODEL_PARAMS[b.modelId] || L6T_SLOT_PARAMS[b.slotId];
+        const visParams = b.params.filter(p => {
+            const name = l6tParamName(b.modelId, b.slotId, p.paramId);
+            if (hasKnown) return name !== null;
+            return (p.paramId >= 0x100001 && p.paramId <= 0x100005) || p.paramId === 0x010001;
+        });
         const paramRows = visParams.map(p => {
-            const label = L6T_PARAM_NAMES[p.paramId] || `Param ${p.paramId & 0xFF}`;
+            const label = l6tParamName(b.modelId, b.slotId, p.paramId) || `Param ${p.paramId & 0xFF}`;
             const val   = p.typeFlag === 1 ? `${Math.round(p.value * 100)}%` : String(p.value);
             return `<div class="flex justify-between text-xs py-0.5 border-b border-gray-800/50">
                 <span class="text-gray-500">${label}</span>
