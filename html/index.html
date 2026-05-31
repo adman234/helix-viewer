@@ -80,9 +80,9 @@
             <div class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold px-6 py-2.5 rounded-full text-sm transition-colors">
                 Choose File
             </div>
-            <div class="mt-4 text-xs text-gray-600">Helix / HX Stomp / HX Effects preset files</div>
+            <div class="mt-4 text-xs text-gray-600">Helix / HX Stomp / HX Effects (.hlx) or Bass PODxt (.l6t)</div>
         </div>
-        <input type="file" id="file-input" accept=".hlx,.json" class="hidden">
+        <input type="file" id="file-input" accept=".hlx,.json,.l6t" class="hidden">
         <div id="upload-error" class="hidden bg-red-950 border border-red-700 text-red-300 text-sm rounded-xl p-4 text-center"></div>
     </div>
 </div>
@@ -100,6 +100,17 @@
         <div id="ir-section"></div>
         <div id="midi-section"></div>
         <div id="block-details"></div>
+    </div>
+</div>
+
+<!-- ── L6T DISPLAY ────────────────────────────────────────────── -->
+<div id="l6t-display" class="hidden">
+    <div class="bg-gray-900/60 border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 py-5" id="l6t-meta"></div>
+    </div>
+    <div class="max-w-7xl mx-auto px-4 py-8 space-y-10">
+        <div id="l6t-chain"></div>
+        <div id="l6t-blocks"></div>
     </div>
 </div>
 
@@ -1578,6 +1589,7 @@ function renderPreset(data) {
 
     // ── Show / hide sections
     document.getElementById('upload-zone').classList.add('hidden');
+    document.getElementById('l6t-display').classList.add('hidden');
     document.getElementById('preset-display').classList.remove('hidden');
     document.getElementById('btn-new').classList.remove('hidden');
 }
@@ -1589,21 +1601,39 @@ function renderPreset(data) {
 function loadFile(file) {
     if (!file) return;
     if (!rlCheck()) return;
+    document.getElementById('upload-error').classList.add('hidden');
+    const isL6T = file.name.toLowerCase().endsWith('.l6t');
     const reader = new FileReader();
-    reader.onload = e => {
-        try {
-            const data = JSON.parse(e.target.result);
-            if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset -missing L6Preset schema tag.');
-            renderPreset(data);
-            const fd = new FormData();
-            fd.append('file', file, file.name);
-            fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
-        } catch(err) {
-            showErr(err.message || 'Could not parse the file.');
-        }
-    };
-    reader.onerror = () => showErr('Failed to read file.');
-    reader.readAsText(file);
+    if (isL6T) {
+        reader.onload = e => {
+            try {
+                const data = parseL6T(e.target.result);
+                renderL6TPreset(data);
+                const fd = new FormData();
+                fd.append('file', file, file.name);
+                fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
+            } catch(err) {
+                showErr(err.message || 'Could not parse L6T file.');
+            }
+        };
+        reader.onerror = () => showErr('Failed to read file.');
+        reader.readAsArrayBuffer(file);
+    } else {
+        reader.onload = e => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset - missing L6Preset schema tag.');
+                renderPreset(data);
+                const fd = new FormData();
+                fd.append('file', file, file.name);
+                fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
+            } catch(err) {
+                showErr(err.message || 'Could not parse the file.');
+            }
+        };
+        reader.onerror = () => showErr('Failed to read file.');
+        reader.readAsText(file);
+    }
 }
 
 function showErr(msg) {
@@ -1629,6 +1659,7 @@ dropArea.addEventListener('drop', e => {
 document.getElementById('btn-new').addEventListener('click', () => {
     document.getElementById('upload-zone').classList.remove('hidden');
     document.getElementById('preset-display').classList.add('hidden');
+    document.getElementById('l6t-display').classList.add('hidden');
     document.getElementById('btn-new').classList.add('hidden');
     document.getElementById('upload-error').classList.add('hidden');
     document.getElementById('file-input').value = '';
@@ -1705,6 +1736,315 @@ function closeAbout() {
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeAbout(); closeRateLimit(); closeRaw(); }
 });
+
+// ================================================================
+// L6T PARSER + VIEWER (Bass PODxt / PODxt family)
+// ================================================================
+
+const L6T_DEVICES = {
+    0x000200: 'Flextone II',        0x000300: 'POD 2.0 / POD Pro',
+    0x030002: 'PODxt',              0x030005: 'PODxt Pro',
+    0x03000A: 'PODxt Live',         0x030006: 'Bass PODxt',
+    0x030007: 'Bass PODxt Pro',     0x03000B: 'Bass PODxt Live',
+    0x000500: 'Floor POD Plus',     0x000600: 'Pocket POD',
+};
+
+const L6T_AMP_NAMES = {
+    0x00030000:'Bypass',        0x00030001:'Tube Preamp',   0x00030002:'Classic Jazz',
+    0x00030003:'Brit Invader',  0x00030004:'Super Thor',    0x00030005:'Frankenstein',
+    0x00030006:'Ebony Lux',     0x00030007:'Doppleganger',  0x00030008:'Sub Dub',
+    0x00030009:'Amp 360',       0x0003000A:'Jaguar',        0x0003000B:'Alchemist',
+    0x0003000C:'Rock Classic',  0x0003000D:'Flip Top',      0x0003000E:'Adam and Eve',
+    0x0003000F:'Tweed B-Man',   0x00030010:'Silverface Bass', 0x00030011:'Double Show',
+    0x00030012:'Eighties',      0x00030013:'Hiway 100',     0x00030014:'Hiway 200',
+    0x00030015:'British Major', 0x00030016:'British Bass',  0x00030017:'California',
+    0x00030018:'Jazz Tone',     0x00030019:'Stadium',       0x0003001A:'Studio Tone',
+    0x0003001B:'Motor City',    0x0003001C:'Brit Class A100',
+};
+
+const L6T_CAB_NAMES = {
+    0x01030000:'No Cab',         0x01030001:'1x12 Boutique',   0x01030002:'1x12 Motor City',
+    0x01030003:'1x15 Flip Top',  0x01030004:'1x15 Jazz Tone',  0x01030005:'1x18 Session',
+    0x01030006:'1x18 Amp 360',   0x01030007:'1x18 California', 0x01030008:'1x18+12 Stadium',
+    0x01030009:'2x10 Modern UK', 0x0103000A:'2x15 Doubleshow', 0x0103000B:'2x15 California',
+    0x0103000C:'2x15 Class A',   0x0103000D:'4x10 Line 6',     0x0103000E:'4x10 Tweed',
+    0x0103000F:'4x10 Adam & Eve',0x01030010:'4x10 Silvercone', 0x01030011:'4x10 Session',
+    0x01030012:'4x12 Hiway',     0x01030013:'4x12 Green 20s',  0x01030014:'4x12 Green 25s',
+    0x01030015:'4x15 Big Boy',   0x01030016:'8x10 Classic',
+    0x01020000:'No Cab',
+};
+
+const L6T_MODEL_MAP = {
+    0x3E700000:{name:'Amp',           cat:'amp'},
+    0x020B0000:{name:'Noise Gate',    cat:'dynamics'},
+    0x020B0001:{name:'Compressor',    cat:'dynamics'},
+    0x020B0002:{name:'Room Size',     cat:'global'},
+    0x020C0002:{name:'4-Band EQ',     cat:'eq'},
+    0x02070000:{name:'Volume Pedal',  cat:'utility'},
+    0xFFFFFFFF:{name:'Empty',         cat:'empty'},
+    // Stomp — Distortion
+    0x02050000:{name:'Facial Fuzz',   cat:'dist'}, 0x02050001:{name:'Tube Drive',    cat:'dist'},
+    0x02050002:{name:'Fuzz Pi',       cat:'dist'}, 0x02050003:{name:'Screamer',      cat:'dist'},
+    0x02050004:{name:'Octave Fuzz',   cat:'dist'}, 0x02050005:{name:'Classic Dist',  cat:'dist'},
+    0x02050006:{name:'Killer Z',      cat:'dist'}, 0x02050007:{name:'Boost + EQ',    cat:'dist'},
+    0x02050008:{name:'Bass Overdrive',cat:'dist'}, 0x02050009:{name:'Bronze Master', cat:'dist'},
+    // Stomp — Dynamics
+    0x02000002:{name:'Blue Comp',     cat:'dynamics'}, 0x02000003:{name:'Blue Comp Treb',cat:'dynamics'},
+    0x02000004:{name:'Red Comp',      cat:'dynamics'}, 0x02000005:{name:'Vetta Comp',    cat:'dynamics'},
+    0x02000006:{name:'Vetta Juice',   cat:'dynamics'}, 0x02000007:{name:'Auto Swell',    cat:'dynamics'},
+    // Stomp — Filter / Synth
+    0x020A0000:{name:'Auto Wah',         cat:'filter'}, 0x020A0001:{name:'Synth Lead',      cat:'synth'},
+    0x020A0002:{name:'Synth String',     cat:'synth'},  0x020A0003:{name:'Synth FX',        cat:'synth'},
+    0x020A0004:{name:'Synth Harmony',    cat:'synth'},  0x020A0005:{name:'Buzz Wave',        cat:'synth'},
+    0x020A0006:{name:'Rez Synth',        cat:'synth'},  0x020A0007:{name:'Synth Analog',     cat:'synth'},
+    0x020A0008:{name:'Sub Octaves',      cat:'pitch'},  0x020A0009:{name:'Synth Harmony 2',  cat:'synth'},
+    0x020A000A:{name:'Dingo-Tron',       cat:'filter'}, 0x020A000B:{name:'Clean Sweep',      cat:'filter'},
+    0x020A000C:{name:'Seismik Synth',    cat:'synth'},  0x020A000D:{name:'Saturn 5 Ring Mod',cat:'synth'},
+    0x020A000E:{name:'Bender',           cat:'pitch'},
+    // Modulation
+    0x02030004:{name:'Sine Chorus',   cat:'mod'}, 0x02030005:{name:'Analog Chorus', cat:'mod'},
+    0x02030006:{name:'L6 Flanger',    cat:'mod'}, 0x02030007:{name:'Jet Flanger',   cat:'mod'},
+    0x02030008:{name:'Phaser',        cat:'mod'}, 0x02030009:{name:'U-Vibe',        cat:'mod'},
+    0x0203000A:{name:'Opto Trem',     cat:'mod'}, 0x0203000B:{name:'Bias Trem',     cat:'mod'},
+    0x0203000C:{name:'Rotary Drum+Horn',cat:'mod'},0x0203000D:{name:'Rotary Drum',  cat:'mod'},
+    0x0203000E:{name:'Auto Pan',      cat:'mod'}, 0x02030011:{name:'Lumpy Phase',   cat:'mod'},
+    0x02030012:{name:'Square Chorus', cat:'mod'}, 0x02030013:{name:'Expo Flange',   cat:'mod'},
+    0x02030014:{name:'Random Chorus', cat:'mod'}, 0x02030015:{name:'Analog Square', cat:'mod'},
+    0x02030017:{name:'POD Purple X',  cat:'mod'}, 0x02030018:{name:'Random S/H',    cat:'mod'},
+    0x02030019:{name:'Tape Eater',    cat:'mod'}, 0x0203001A:{name:'Hi-Talk',       cat:'mod'},
+    0x0203001B:{name:'Sweeper',       cat:'mod'}, 0x0203001C:{name:'Warble-Matic',  cat:'mod'},
+    0x0203001E:{name:'Expo Chorus',   cat:'mod'}, 0x0203001F:{name:'Square Flange', cat:'mod'},
+    // Delay
+    0x02020002:{name:'Analog Delay',  cat:'delay'}, 0x02020003:{name:'Analog w/Mod',    cat:'delay'},
+    0x02020004:{name:'Tube Echo',     cat:'delay'}, 0x02020005:{name:'Multi-Head',       cat:'delay'},
+    0x02020006:{name:'Sweep Echo',    cat:'delay'}, 0x02020007:{name:'Digital Delay',    cat:'delay'},
+    0x02020008:{name:'Reverse Delay', cat:'delay'}, 0x02020009:{name:'Lo Res Delay',     cat:'delay'},
+    0x0202000A:{name:'Dynamic Delay', cat:'delay'}, 0x0202000B:{name:'Auto Volume Echo', cat:'delay'},
+    0x0202000C:{name:'Multi-Head 2',  cat:'delay'}, 0x0202000D:{name:'Ping Pong',        cat:'delay'},
+    0x0202000E:{name:'Modulated Delay',cat:'delay'},0x0202000F:{name:'Sweep Delay',      cat:'delay'},
+    // Reverb
+    0x02040002:{name:'Lux Spring',  cat:'reverb'}, 0x02040003:{name:'Std Spring',    cat:'reverb'},
+    0x02040004:{name:'King Spring', cat:'reverb'}, 0x02040005:{name:'Small Room',    cat:'reverb'},
+    0x02040006:{name:'Tiled Room',  cat:'reverb'}, 0x02040007:{name:'Brite Room',    cat:'reverb'},
+    0x02040008:{name:'Dark Hall',   cat:'reverb'}, 0x02040009:{name:'Medium Hall',   cat:'reverb'},
+    0x0204000A:{name:'Large Hall',  cat:'reverb'}, 0x0204000B:{name:'Rich Chamber',  cat:'reverb'},
+    0x0204000C:{name:'Chamber',     cat:'reverb'}, 0x0204000D:{name:'Cavernous',     cat:'reverb'},
+    0x0204000E:{name:'Slap Plate',  cat:'reverb'}, 0x0204000F:{name:'Vintage Plate', cat:'reverb'},
+    0x02040010:{name:'Large Plate', cat:'reverb'},
+    // Wah
+    0x02060000:{name:'Throaty',       cat:'wah'}, 0x02060001:{name:'Vetta Wah',   cat:'wah'},
+    0x02060002:{name:'Fassel',        cat:'wah'}, 0x02060003:{name:'Weeper',      cat:'wah'},
+    0x02060004:{name:'Chrome',        cat:'wah'}, 0x02060005:{name:'Chrome Custom',cat:'wah'},
+    0x02060006:{name:'Conductor',     cat:'wah'}, 0x02060007:{name:'Colorful',    cat:'wah'},
+};
+
+const L6T_PARAM_NAMES = {
+    0x100000:'Speed', 0x100001:'Param 1', 0x100002:'Param 2',
+    0x100003:'Param 3', 0x100004:'Param 4', 0x100005:'Param 5',
+    0x010001:'Level', 0x010002:'DI Xover',
+};
+
+function l6tSlotOrder(slotId) {
+    const o = {
+        0x00020002:1, 0x00020001:2, 0x00020000:3, 0x00020003:4,
+        0x00020005:5, 0x00010000:-1,
+        0x00030000:6, 0x00030001:7, 0x00030003:8,
+        0x00050000:9, 0x00050001:10, 0x00050002:11,
+        0x00050003:12, 0x00050004:13, 0x00050006:14,
+        0x00050005:99,
+    };
+    return o[slotId] ?? 50;
+}
+
+function l6tCatStyle(cat) {
+    const s = {
+        dist:    {bg:'bg-red-950',    border:'border-red-800',   text:'text-red-300',    badge:'bg-red-900',    dot:'bg-red-400'},
+        dynamics:{bg:'bg-blue-950',   border:'border-blue-800',  text:'text-blue-300',   badge:'bg-blue-900',   dot:'bg-blue-400'},
+        filter:  {bg:'bg-orange-950', border:'border-orange-800',text:'text-orange-300', badge:'bg-orange-900', dot:'bg-orange-400'},
+        synth:   {bg:'bg-pink-950',   border:'border-pink-800',  text:'text-pink-300',   badge:'bg-pink-900',   dot:'bg-pink-400'},
+        pitch:   {bg:'bg-green-950',  border:'border-green-800', text:'text-green-300',  badge:'bg-green-900',  dot:'bg-green-400'},
+        mod:     {bg:'bg-cyan-950',   border:'border-cyan-800',  text:'text-cyan-300',   badge:'bg-cyan-900',   dot:'bg-cyan-400'},
+        delay:   {bg:'bg-purple-950', border:'border-purple-800',text:'text-purple-300', badge:'bg-purple-900', dot:'bg-purple-400'},
+        reverb:  {bg:'bg-indigo-950', border:'border-indigo-800',text:'text-indigo-300', badge:'bg-indigo-900', dot:'bg-indigo-400'},
+        eq:      {bg:'bg-yellow-950', border:'border-yellow-800',text:'text-yellow-300', badge:'bg-yellow-900', dot:'bg-yellow-400'},
+        wah:     {bg:'bg-orange-950', border:'border-orange-800',text:'text-orange-300', badge:'bg-orange-900', dot:'bg-orange-400'},
+        amp:     {bg:'bg-amber-950',  border:'border-amber-800', text:'text-amber-300',  badge:'bg-amber-900',  dot:'bg-amber-400'},
+        utility: {bg:'bg-gray-900',   border:'border-gray-700',  text:'text-gray-300',   badge:'bg-gray-800',   dot:'bg-gray-400'},
+        global:  {bg:'bg-gray-900',   border:'border-gray-700',  text:'text-gray-400',   badge:'bg-gray-800',   dot:'bg-gray-500'},
+        empty:   {bg:'bg-gray-950',   border:'border-gray-800',  text:'text-gray-600',   badge:'bg-gray-900',   dot:'bg-gray-700'},
+    };
+    return s[cat] || s.utility;
+}
+
+function parseL6T(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const view  = new DataView(buffer);
+    let   pos   = 0;
+
+    const readTag  = () => { const s = String.fromCharCode(bytes[pos],bytes[pos+1],bytes[pos+2],bytes[pos+3]); pos+=4; return s; };
+    const readU32  = () => { const v = view.getUint32(pos, false); pos+=4; return v; };
+    const readU8   = () => bytes[pos++];
+    const readUTF16 = len => {
+        let s = '';
+        for (let i = 0; i < len; i += 2) {
+            const c = view.getUint16(pos + i, false);
+            if (c !== 0) s += String.fromCharCode(c);
+        }
+        pos += len; return s.trim();
+    };
+    const readUTF16Z = len => {
+        let s = '';
+        for (let i = 0; i < len; i += 2) {
+            const c = view.getUint16(pos + i, false);
+            if (c === 0) break;
+            s += String.fromCharCode(c);
+        }
+        pos += len; return s.trim();
+    };
+
+    const result = { name:'', deviceId:0, deviceName:'Unknown Device', meta:{}, blocks:[] };
+    const META = { IBND:'band', IAUT:'author', ICMT:'comments', ISTL:'style',
+                   IAMP:'ampName', IGTR:'guitarist', IPUS:'pickupStyle',
+                   IPUP:'pickupPos', IAPV:'appVersion' };
+
+    let curBlock = null;
+
+    function walk(end) {
+        while (pos < end - 8) {
+            const t    = readTag();
+            const size = readU32();
+            const next = pos + size;
+
+            if (t === 'FORM' || t === 'LIST') {
+                const sub = readTag();
+                if (sub === 'MODL') {
+                    curBlock = { modelId:0, slotId:0, enabled:false, params:[] };
+                    walk(next);
+                    result.blocks.push(curBlock);
+                    curBlock = null;
+                } else {
+                    walk(next);
+                }
+            } else if (t === 'PINF' && size >= 44) {
+                readU32(); // version
+                result.deviceId   = readU32();
+                result.deviceName = L6T_DEVICES[result.deviceId] || `Device 0x${result.deviceId.toString(16).toUpperCase()}`;
+                result.name       = readUTF16Z(32);
+            } else if (t === 'MINF' && curBlock && size === 12) {
+                curBlock.modelId = readU32();
+                curBlock.slotId  = readU32();
+                readU8(); readU8(); readU8(); // ordinal + 2 padding
+                curBlock.enabled = readU8() > 0;
+            } else if (t === 'PARM' && curBlock && size === 12) {
+                const paramId  = readU32() & 0x00FFFFFF;
+                const typeFlag = readU32();
+                const valPos   = pos; readU32();
+                const value    = typeFlag === 1 ? view.getFloat32(valPos, false) : view.getUint32(valPos, false);
+                curBlock.params.push({ paramId, typeFlag, value });
+            } else if (META[t]) {
+                result.meta[META[t]] = readUTF16(size);
+            }
+
+            pos = next;
+            if (pos % 2 !== 0) pos++;
+        }
+    }
+
+    walk(buffer.byteLength);
+    return result;
+}
+
+function l6tResolveBlocks(blocks) {
+    const ampBlock = blocks.find(b => b.slotId === 0x00030000);
+    const cabBlock = blocks.find(b => b.slotId === 0x00030001);
+    const ampName  = ampBlock ? (L6T_AMP_NAMES[ampBlock.modelId] ?? `0x${ampBlock.modelId.toString(16)}`) : null;
+    const cabName  = cabBlock ? (L6T_CAB_NAMES[cabBlock.modelId] ?? `0x${cabBlock.modelId.toString(16)}`) : null;
+
+    return blocks
+        .filter(b => l6tSlotOrder(b.slotId) >= 0 && l6tSlotOrder(b.slotId) < 99)
+        .map(b => {
+            const info = L6T_MODEL_MAP[b.modelId] ?? { name:`Unknown (0x${b.modelId.toString(16)})`, cat:'utility' };
+            if (b.slotId === 0x00030000) return { ...b, name:ampName||info.name, cat:'amp', displayCat:'Amp' };
+            if (b.slotId === 0x00030001) return { ...b, name:cabName||info.name, cat:'amp', displayCat:'Cab' };
+            const label = info.cat.charAt(0).toUpperCase() + info.cat.slice(1);
+            return { ...b, name:info.name, cat:info.cat, displayCat:label };
+        })
+        .sort((a, b) => l6tSlotOrder(a.slotId) - l6tSlotOrder(b.slotId));
+}
+
+function renderL6TPreset(data) {
+    document.getElementById('upload-zone').classList.add('hidden');
+    document.getElementById('preset-display').classList.add('hidden');
+    document.getElementById('upload-error').classList.add('hidden');
+    document.getElementById('l6t-display').classList.remove('hidden');
+    document.getElementById('btn-new').classList.remove('hidden');
+
+    const blocks = l6tResolveBlocks(data.blocks);
+
+    // ── Meta
+    const who = [data.meta.band, data.meta.author].filter(Boolean).join(' — ');
+    document.getElementById('l6t-meta').innerHTML = `
+        <div class="flex flex-wrap gap-4 items-start justify-between">
+            <div>
+                <div class="text-2xl font-black text-white">${data.name || 'Untitled'}</div>
+                ${who ? `<div class="text-sm text-gray-400 mt-0.5">${who}</div>` : ''}
+                ${data.meta.comments ? `<div class="text-xs text-gray-600 mt-1 max-w-xl">${data.meta.comments}</div>` : ''}
+            </div>
+            <div class="text-right text-xs text-gray-600 space-y-0.5">
+                <div class="text-amber-500 font-bold text-sm">${data.deviceName}</div>
+                ${data.meta.style ? `<div>Style: ${data.meta.style}</div>` : ''}
+                ${data.meta.appVersion ? `<div>Line 6 Edit ${data.meta.appVersion}</div>` : ''}
+                <div class="text-xs text-gray-700 mt-1 italic">L6T — read only, no Helix conversion</div>
+            </div>
+        </div>`;
+
+    // ── Signal chain
+    document.getElementById('l6t-chain').innerHTML = `
+        <h2 class="text-xl font-bold text-white mb-4">Signal Chain</h2>
+        <div class="flex flex-wrap items-center gap-2">
+            ${ioChip('Input')}
+            ${blocks.map(b => {
+                const s = l6tCatStyle(b.cat);
+                return `<div class="${s.bg} border ${s.border} rounded-xl p-2.5 text-center w-28 flex-shrink-0 ${b.enabled ? '' : 'opacity-40'}">
+                    <div class="w-2 h-2 rounded-full ${b.enabled ? s.dot : 'bg-gray-700'} mx-auto mb-1.5"></div>
+                    <div class="text-xs font-semibold ${s.text} leading-tight">${b.name}</div>
+                    <div class="text-xs text-gray-600 mt-0.5">${b.displayCat}</div>
+                </div>`;
+            }).join(arrow())}
+            ${ioChip('Output')}
+        </div>`;
+
+    // ── Block detail cards
+    const cards = blocks.map(b => {
+        const s = l6tCatStyle(b.cat);
+        const visParams = b.params.filter(p =>
+            (p.paramId >= 0x100000 && p.paramId <= 0x10000F) ||
+            p.paramId === 0x010001 || p.paramId === 0x010002
+        );
+        const paramRows = visParams.map(p => {
+            const label = L6T_PARAM_NAMES[p.paramId] || `Param ${p.paramId & 0xFF}`;
+            const val   = p.typeFlag === 1 ? `${Math.round(p.value * 100)}%` : String(p.value);
+            return `<div class="flex justify-between text-xs py-0.5 border-b border-gray-800/50">
+                <span class="text-gray-500">${label}</span>
+                <span class="text-gray-300 font-mono">${val}</span>
+            </div>`;
+        }).join('');
+        return `<div class="${s.bg} border ${s.border} rounded-2xl p-5 ${b.enabled ? '' : 'opacity-60'}">
+            <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2 flex-wrap min-w-0">
+                    <div class="w-3 h-3 rounded-full flex-shrink-0 ${b.enabled ? s.dot : 'bg-gray-700'}"></div>
+                    <span class="text-base font-bold text-white">${b.name}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full ${s.badge} ${s.text}">${b.displayCat}</span>
+                </div>
+                <span class="text-xs px-2.5 py-1 rounded-lg font-bold flex-shrink-0 ${b.enabled ? 'bg-green-900 text-green-400' : 'bg-gray-800 text-gray-500'}">${b.enabled ? 'ON' : 'OFF'}</span>
+            </div>
+            ${paramRows ? `<div class="mt-2 space-y-0.5">${paramRows}</div>` : '<div class="text-xs text-gray-700 italic">No parameters</div>'}
+        </div>`;
+    }).join('');
+    document.getElementById('l6t-blocks').innerHTML = `
+        <h2 class="text-xl font-bold text-white mb-4">Block Details</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">${cards}</div>`;
+}
 
 // ================================================================
 // LOCAL STORAGE RESTORE
