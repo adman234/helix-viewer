@@ -11,12 +11,13 @@ Upload a preset file to explore its signal chain, block parameters, snapshots, f
 ## Features
 
 - **Signal chain visualization** — see DSP 1 and DSP 2 blocks laid out in order, including parallel A/B paths
-- **Block details** — friendly model names, categories, and all parameter values with hover tooltips
+- **Block details** — exact model names, parameter names, units and ranges from HX Edit's own model database (677 models); values changed from the model default are highlighted, and hovering shows the default and range
+- **Edit parameters in real units** — enter dB, ms, Hz, % or knob values just like HX Edit; out-of-range values are clamped to the model's limits
 - **Snapshot switching** — click any snapshot to preview how blocks change state across snapshots
 - **Toggle blocks on/off** — change block state within the active snapshot
 - **Remove blocks / DSPs** — soft-mark blocks for removal (shown with strikethrough); removed blocks are excluded when exporting
 - **Export modified preset** — download the modified `.hlx` file with your changes applied
-- **HX Stomp compatibility check** — block count banner warns when a preset exceeds the Stomp's 6-block limit
+- **HX Stomp compatibility check** — warns when a preset exceeds the Stomp's 8-block limit or uses models the Stomp doesn't have
 - **IR slot viewer** — see which impulse response slots are used and their UUIDs
 - **MIDI / controller assignments** — view CC and controller mappings
 - **Footswitch assignments** — see which footswitch controls each block
@@ -37,6 +38,7 @@ Upload a preset file to explore its signal chain, block parameters, snapshots, f
 - **ON / OFF button** — toggles the block in the active snapshot without affecting other snapshots.
 - **Remove button** — marks the block for removal on export (strikethrough). Click **Undo Remove** to restore it. The block stays in view until you export.
 - **Remove DSP** — marks an entire DSP path for removal. The chain collapses to a stub; click **Restore DSP** to undo.
+- **Edit button** — edit parameters in the units HX Edit shows. Dropdown params (mic, note sync, ratio, etc.) show their real options. Amp+Cab blocks include the cab's params. Click **Save** to apply.
 
 ### Snapshots
 
@@ -47,6 +49,7 @@ Upload a preset file to explore its signal chain, block parameters, snapshots, f
 
 Click **Export .hlx** to download the preset with your changes applied:
 - Toggled ON/OFF states are saved.
+- Edited parameter values are saved.
 - Removed blocks and DSPs are permanently deleted from the exported file.
 
 ---
@@ -78,6 +81,16 @@ Use the docker-compose above, or add the container manually:
 ### Running locally (no Docker)
 
 Open `html/index.html` directly in any modern browser. The upload persistence backend won't be available, but all other features work fully client-side.
+
+### Updating the model database
+
+Model and parameter definitions live in `html/models.js`, generated from the JSON files HX Edit installs (`res/*.models`, `HX_ModelCatalog.json`, `HelixControls.json`). After updating HX Edit for a new firmware release, regenerate it:
+
+```bash
+python tools/build_models.py
+```
+
+On Windows it reads `C:\Program Files (x86)\Line6\HX Edites` by default; pass a different path as the first argument if needed.
 
 ---
 

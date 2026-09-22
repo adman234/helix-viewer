@@ -228,6 +228,7 @@
     </div>
 </div>
 
+<script src="models.js"></script>
 <script>
 // ================================================================
 // MODEL DATABASE
@@ -416,6 +417,19 @@ const CAT_STYLE = {
     Output:   { bg:'bg-gray-900',   border:'border-gray-700',   text:'text-gray-400',   badge:'bg-gray-700',   dot:'bg-gray-500'   },
     Unknown:  { bg:'bg-gray-900',   border:'border-gray-700',   text:'text-gray-400',   badge:'bg-gray-700',   dot:'bg-gray-500'   },
 };
+// HX Edit catalog category names → styles above
+Object.assign(CAT_STYLE, {
+    'Distortion':  CAT_STYLE.Drive,
+    'Modulation':  CAT_STYLE.Phaser,
+    'Pitch/Synth': CAT_STYLE.Pitch,
+    'Preamp':      CAT_STYLE.Amp,
+    'Cab':         CAT_STYLE.Cabinet,
+    'Volume/Pan':  CAT_STYLE.Volume,
+    'Looper':      CAT_STYLE.Volume,
+    'Send/Return': CAT_STYLE.Routing,
+    'Split':       CAT_STYLE.Routing,
+    'Merge':       CAT_STYLE.Routing,
+});
 
 // ================================================================
 // PARAMETER TOOLTIPS
@@ -621,6 +635,11 @@ const HZ_PARAMS = new Set(['rate','locut','lowcut','highcut','hicut','bassfreq',
 
 function lookupModel(modelId) {
     if (!modelId || modelId.startsWith('@')) return { name: 'Unknown', category: 'Unknown' };
+    const hx = hxModel(modelId);
+    if (hx) {
+        return { name: hx.n, category: hx.c || MODEL_DB[modelId]?.category || 'Unknown',
+                 sub: hx.s, info: MODEL_DB[modelId]?.info };
+    }
     if (MODEL_DB[modelId]) return MODEL_DB[modelId];
 
     // Auto-parse model ID into a readable name
@@ -700,6 +719,166 @@ function fmtParamValue(key, value) {
     if (value >= 0 && value <= 1 && value % 1 !== 0) return `${Math.round(value * 100)}%`;
     if (Number.isInteger(value)) return String(value);
     return value.toFixed(2);
+}
+
+// ================================================================
+// HX EDIT MODEL DATABASE (html/models.js, built by tools/build_models.py)
+// Exact parameter names, ranges, defaults and unit formatting.
+// ================================================================
+
+const HX_DB = window.HX_DB || null;
+const HX_STOMP_DEVICE_ID = 2162694;
+const gHxParamCache = {};
+
+function hxModel(modelId) {
+    return HX_DB?.models?.[modelId] || null;
+}
+
+// Parameter definitions for a model, keyed by preset param key, in HX Edit order.
+function hxParams(modelId) {
+    if (gHxParamCache[modelId]) return gHxParamCache[modelId];
+    const m = hxModel(modelId);
+    if (!m) return null;
+    const defs = new Map();
+    for (const [id, label, dt, min, max, def, x] of m.p) {
+        defs.set(id, { id, label: label || id, dt, min, max, def, x: x || {} });
+    }
+    return (gHxParamCache[modelId] = defs);
+}
+
+function hxParamDef(modelId, key) {
+    return hxParams(modelId)?.get(key) || null;
+}
+
+// Variant of a def for a stereo block (some delays have shorter max time in stereo).
+function hxEffectiveDef(def, stereo) {
+    if (!stereo || !def.x) return def;
+    return { ...def,
+        dt:  def.x.dts  ?? def.dt,
+        max: def.x.maxs ?? def.max,
+        def: def.x.defs ?? def.def };
+}
+
+function hxControl(def) {
+    return HX_DB?.controls?.[def.dt] || {};
+}
+
+// Minimal printf: %d %03d %+.1f %.0f %% as used by HelixControls.json
+function cfmt(tpl, v) {
+    return tpl.replace(/%([+0 -]*)(\d*)(?:\.(\d+))?([dfs%])/g, (_, flags, width, prec, conv) => {
+        if (conv === '%') return '%';
+        if (conv === 's') return String(v);
+        let s = conv === 'd' ? String(Math.round(Math.abs(v))) : Math.abs(v).toFixed(prec !== undefined ? +prec : 6);
+        const neg = v < 0 && Number(s) !== 0;
+        if (flags.includes('0') && width) s = s.padStart(+width - (neg || flags.includes('+') ? 1 : 0), '0');
+        if (neg) s = '-' + s;
+        else if (flags.includes('+')) s = '+' + s;
+        return s;
+    });
+}
+
+// List-style discrete formats (e.g. ["Off","On"], note values) indexed from the param minimum.
+function hxOptions(def) {
+    const f = hxControl(def).format;
+    if (!Array.isArray(f) || !f.length || typeof f[0] !== 'string') return null;
+    const base = typeof def.min === 'boolean' ? 0 : def.min;
+    return f.map((label, i) => ({ label, raw: typeof def.min === 'boolean' ? i === 1 : base + i }));
+}
+
+function hxRawToDisplay(def, raw) {
+    const c = hxControl(def);
+    let v = typeof raw === 'boolean' ? (raw ? 1 : 0) : raw;
+    if (c.minimumValue !== undefined && c.maximumValue !== undefined && def.max !== def.min) {
+        v = c.minimumValue + (v - def.min) / (def.max - def.min) * (c.maximumValue - c.minimumValue);
+    } else {
+        v = v * (c.dspToDisplayScale ?? 1);
+    }
+    return v + (c.dspToDisplayIntegerOffset ?? 0);
+}
+
+function hxDisplayToRaw(def, disp) {
+    const c = hxControl(def);
+    let v = disp - (c.dspToDisplayIntegerOffset ?? 0);
+    if (c.minimumValue !== undefined && c.maximumValue !== undefined && c.maximumValue !== c.minimumValue) {
+        v = def.min + (v - c.minimumValue) / (c.maximumValue - c.minimumValue) * (def.max - def.min);
+    } else {
+        v = v / (c.dspToDisplayScale ?? 1);
+    }
+    if (c.isDiscrete) v = Math.round(v);
+    return Math.min(def.max, Math.max(def.min, v));
+}
+
+// Format a raw preset value exactly as HX Edit displays it. Returns null if not formattable.
+function hxFormat(def, raw) {
+    if (raw === null || raw === undefined) return null;
+    const opts = hxOptions(def);
+    if (opts) {
+        const o = opts.find(o => Number(o.raw) === Number(raw));
+        return o ? o.label : String(raw);
+    }
+    if (typeof raw === 'boolean') return raw ? 'On' : 'Off';
+    if (typeof raw !== 'number') return null;
+
+    const c    = hxControl(def);
+    const disp = hxRawToDisplay(def, raw);
+    let seg    = c.format;
+    if (Array.isArray(seg)) {
+        seg = seg.find(r => disp >= r.lowerBound && disp < r.upperBound)
+           || (disp < seg[0].lowerBound ? seg[0] : seg[seg.length - 1]);
+    }
+    let out;
+    if (seg && typeof seg === 'object') {
+        out = seg.formatUnits !== undefined
+            ? cfmt(seg.formatUnits, disp * (seg.unitsMultiplier ?? 1))
+            : cfmt(seg.format, disp);
+    } else if (typeof seg === 'string') {
+        out = cfmt(c.formatUnits ?? seg, disp);
+    } else if (c.isDiscrete || Number.isInteger(def.min) && Number.isInteger(def.max) && Number.isInteger(raw)) {
+        out = String(Math.round(disp));
+    } else {
+        out = String(+disp.toFixed(2));
+    }
+    return out.replace(/ %$/, '%');
+}
+
+// Unit label for the edit box (the base display unit, e.g. "ms", "dB", "Hz", "%").
+function hxEditUnit(def) {
+    const c = hxControl(def);
+    if (c.minimumValue !== undefined) return '';
+    const segs = Array.isArray(c.format) ? c.format : [c];
+    for (const s of segs) {
+        if (typeof s !== 'object' || s.unitsMultiplier !== undefined) continue;
+        const tpl = s.formatUnits;
+        if (tpl && /%[^%]*[df]/.test(tpl)) {
+            return tpl.replace(/%[+0 -]*\d*(?:\.\d+)?[df]/, '').replace('%%', '%').trim();
+        }
+    }
+    return '';
+}
+
+// Value shown in the edit box, in display units, trimmed of float noise.
+function hxEditValue(def, raw) {
+    const d = hxRawToDisplay(def, raw);
+    return String(+d.toFixed(Math.abs(d) >= 100 ? 1 : 3));
+}
+
+function hxIsDefault(def, raw) {
+    if (typeof raw === 'boolean' || typeof def.def === 'boolean') return Boolean(raw) === Boolean(def.def);
+    if (typeof raw !== 'number') return true;
+    return Math.abs(raw - def.def) <= Math.max(1e-4, Math.abs(def.max - def.min) * 1e-3);
+}
+
+// Ordered [key, value, def|null] for a block: HX Edit's order first, then unknown keys.
+function orderedParams(blockData) {
+    const model = blockData['@model'] || '';
+    const stereo = blockData['@stereo'] === true;
+    const defs = hxParams(model);
+    const keys = Object.keys(blockData).filter(k => !k.startsWith('@') && k !== '_id');
+    if (!defs) return keys.map(k => [k, blockData[k], null]);
+    const known = [...defs.keys()].filter(k => k in blockData);
+    const rest  = keys.filter(k => !defs.has(k));
+    return [...known.map(k => [k, blockData[k], hxEffectiveDef(defs.get(k), stereo)]),
+            ...rest.map(k => [k, blockData[k], null])];
 }
 
 // ================================================================
@@ -960,13 +1139,13 @@ function detailCard(blockId, blockData, dspId) {
     return `<div id="detail-${dspId}-${blockId}"
                  class="${s.bg} border ${s.border} rounded-2xl p-5 ${cardOpacity} ${editRing}">
         ${removed ? `<div class="text-xs text-red-500 mb-3">Will be removed on export</div>` : ''}
-        ${editing  ? `<div class="text-xs text-amber-500/70 mb-3">Editing — values saved to preset on export. Units shown are for reference; enter raw values. Any values outside the allowed range will be adjusted automatically by the Helix device.</div>` : ''}
+        ${editing  ? `<div class="text-xs text-amber-500/70 mb-3">${hxModel(model) ? 'Editing — enter values in the units shown (same as HX Edit). Out-of-range values are clamped to the model\'s limits. Changes are written to the preset on export.' : 'Editing — this model is not in the database, so enter raw preset values. Changes are written to the preset on export.'}</div>` : ''}
         <div class="flex items-start justify-between gap-4 mb-4">
             <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
                     <div class="w-3 h-3 rounded-full flex-shrink-0 ${on ? s.dot : 'bg-gray-700'}"></div>
                     <span class="text-base font-bold ${nameClass}">${info.name}</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full ${s.badge} ${s.text}">${info.category}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full ${s.badge} ${s.text}">${info.category}${info.sub ? ` · ${info.sub}` : ''}</span>
                 </div>
                 ${infoHtml}
                 <div class="text-xs text-gray-700 mt-0.5 font-mono">${model}</div>
@@ -995,46 +1174,83 @@ function detailCard(blockId, blockData, dspId) {
                 <div class="text-xs text-gray-700">${dspId.toUpperCase()} · ${blockId}</div>
             </div>
         </div>
-        ${!removed && params.length > 0 ? `
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-            ${params.map(([k,v]) => {
-                const n = fmtParamName(k);
-                if (!n) return '';
-                const tip      = paramTip(k);
-                const editKey  = `${dspId}:${blockId}:${k}`;
-                const wasEdited = editKey in gEditedParams;
-                if (editing) {
-                    const unit    = paramUnit(k, v);
-                    const isBool  = typeof v === 'boolean';
-                    const inputEl = isBool
-                        ? `<select oninput="onParamInput('${dspId}','${blockId}','${k}',this.value,this)"
-                                class="bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded px-1 py-0.5 focus:outline-none focus:border-amber-500 w-full">
-                                <option value="true"  ${v ? 'selected' : ''}>On</option>
-                                <option value="false" ${!v ? 'selected' : ''}>Off</option>
-                           </select>`
-                        : `<div class="flex items-center gap-1">
-                                <input type="number" step="any" value="${v}"
-                                    class="bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded px-2 py-0.5 w-full focus:outline-none focus:border-amber-500"
-                                    oninput="onParamInput('${dspId}','${blockId}','${k}',this.value,this)">
-                                ${unit ? `<span class="text-gray-600 text-xs flex-shrink-0">${unit}</span>` : ''}
-                           </div>`;
-                    return `<div class="bg-black/40 rounded-lg px-3 py-2">
-                        <div class="text-xs text-gray-600 mb-1">${n}</div>
-                        ${inputEl}
-                    </div>`;
-                }
-                const valCls = wasEdited ? 'text-amber-300' : 'text-gray-200';
-                return `<div class="bg-black/30 rounded-lg px-3 py-2 ${tip ? 'has-tip' : ''}">
-                    <div class="text-xs text-gray-600 flex items-center gap-1">
-                        ${n}${tip ? ' <span class="text-gray-700 text-xs">?</span>' : ''}
-                    </div>
-                    <div class="text-sm font-semibold ${valCls} mt-0.5">${fmtParamValue(k, v)}</div>
-                    ${tip ? `<div class="tip">${tip}</div>` : ''}
-                </div>`;
-            }).join('')}
-        </div>` : ''}
+        ${!removed && params.length > 0 ? paramGrid(dspId, blockId, blockData, editing) : ''}
+        ${!removed ? linkedCabHtml(dspId, blockData, editing) : ''}
         ${fsHtml}
     </div>`;
+}
+
+// Amp+Cab blocks keep the cab's params in a separate "cabN" entry referenced by @cab.
+function linkedCabHtml(dspId, blockData, editing) {
+    const cabId = blockData['@cab'];
+    const cab   = cabId && gPreset?.data?.tone?.[dspId]?.[cabId];
+    if (!cab || typeof cab !== 'object') return '';
+    const info = lookupModel(cab['@model'] || '');
+    return `<div class="mt-3 pt-3 border-t border-gray-800">
+        <div class="text-xs text-gray-600 mb-2">Cab: <span class="text-gray-300 font-semibold">${info.name}</span>
+            <span class="font-mono text-gray-700">${cab['@model'] || ''}</span></div>
+        ${paramGrid(dspId, cabId, cab, editing)}
+    </div>`;
+}
+
+function paramGrid(dspId, blockId, blockData, editing) {
+    const cells = orderedParams(blockData).map(([k, v, def]) => {
+        const n = def ? def.label : fmtParamName(k);
+        if (!n) return '';
+        const editKey   = `${dspId}:${blockId}:${k}`;
+        const wasEdited = editKey in gEditedParams;
+        const shown     = wasEdited ? gEditedParams[editKey] : v;
+        const text      = (def && hxFormat(def, shown)) ?? fmtParamValue(k, shown);
+        const changed   = def && !hxIsDefault(def, shown);
+        const defText   = def ? hxFormat(def, def.def) : null;
+        const range     = def && typeof def.min === 'number' && !hxOptions(def)
+            ? `${hxFormat(def, def.min)} to ${hxFormat(def, def.max)}` : null;
+        const tipParts  = [paramTip(k), defText !== null ? `Default: ${defText}` : null, range ? `Range: ${range}` : null]
+            .filter(Boolean);
+        const tip       = tipParts.join('<br>');
+
+        if (editing) {
+            const onInput = `onParamInput('${dspId}','${blockId}','${k}',this.value,this)`;
+            const opts    = def ? hxOptions(def) : null;
+            let inputEl;
+            if (opts || typeof v === 'boolean') {
+                const list = opts || [{ label: 'On', raw: true }, { label: 'Off', raw: false }];
+                inputEl = `<select oninput="${onInput}"
+                        class="bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded px-1 py-0.5 focus:outline-none focus:border-amber-500 w-full">
+                        ${list.map(o => `<option value="${o.raw}" ${Number(o.raw) === Number(shown) ? 'selected' : ''}>${o.label}</option>`).join('')}
+                    </select>`;
+            } else {
+                const unit  = def ? hxEditUnit(def) : paramUnit(k, v);
+                const value = def && typeof shown === 'number' ? hxEditValue(def, shown) : shown;
+                inputEl = `<div class="flex items-center gap-1">
+                        <input type="number" step="any" value="${value}" inputmode="decimal"
+                            class="bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded px-2 py-0.5 w-full focus:outline-none focus:border-amber-500"
+                            oninput="${onInput}">
+                        ${unit ? `<span class="text-gray-600 text-xs flex-shrink-0">${unit}</span>` : ''}
+                    </div>
+                    <div class="text-[10px] text-gray-600 mt-1 truncate" data-preview>${range ? range : ''}</div>`;
+            }
+            return `<div class="bg-black/40 rounded-lg px-3 py-2">
+                <div class="text-xs text-gray-600 mb-1">${n}</div>
+                ${inputEl}
+            </div>`;
+        }
+        const valCls = wasEdited ? 'text-amber-300' : changed ? 'text-white' : 'text-gray-400';
+        return `<div class="bg-black/30 rounded-lg px-3 py-2 ${tip ? 'has-tip' : ''}">
+            <div class="text-xs text-gray-600 flex items-center gap-1">
+                ${n}${changed ? ' <span class="text-amber-500/80" title="Changed from default">•</span>' : ''}
+            </div>
+            <div class="text-sm font-semibold ${valCls} mt-0.5">${text}</div>
+            ${tip ? `<div class="tip">${tip}</div>` : ''}
+        </div>`;
+    });
+    if ('@trails' in blockData) {
+        cells.push(`<div class="bg-black/30 rounded-lg px-3 py-2">
+            <div class="text-xs text-gray-600">Trails</div>
+            <div class="text-sm font-semibold text-gray-200 mt-0.5">${blockData['@trails'] ? 'On' : 'Off'}</div>
+        </div>`);
+    }
+    return `<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">${cells.join('')}</div>`;
 }
 
 // ================================================================
@@ -1106,10 +1322,26 @@ function paramUnit(key, value) {
     return '';
 }
 
+// Stores the edited value as a raw preset value (converted from display units when the model is known).
 function onParamInput(dspId, blockId, paramKey, value, el) {
-    gEditedParams[`${dspId}:${blockId}:${paramKey}`] = value;
+    const block    = gPreset?.data?.tone?.[dspId]?.[blockId];
+    const baseDef  = block && hxParamDef(block['@model'] || '', paramKey);
+    const def      = baseDef && hxEffectiveDef(baseDef, block['@stereo'] === true);
+    let raw;
+    if (value === 'true' || value === 'false') {
+        raw = value === 'true';
+    } else {
+        const n = parseFloat(value);
+        if (isNaN(n)) return;
+        if (!def) raw = n;
+        else if (hxOptions(def)) raw = n;                 // option value is already raw
+        else raw = hxDisplayToRaw(def, n);
+    }
+    gEditedParams[`${dspId}:${blockId}:${paramKey}`] = raw;
     el.classList.add('text-amber-300');
     el.classList.remove('text-gray-300');
+    const preview = el.closest('.rounded-lg')?.querySelector('[data-preview]');
+    if (preview && def) preview.textContent = `→ ${hxFormat(def, raw)}`;
 }
 
 function toggleEditBlock(dspId, blockId) {
@@ -1123,19 +1355,24 @@ function toggleEditBlock(dspId, blockId) {
 }
 
 function saveBlock(dspId, blockId) {
-    const prefix = `${dspId}:${blockId}:`;
     const block  = gPreset?.data?.tone?.[dspId]?.[blockId];
     if (!block) return;
-    for (const [key, rawVal] of Object.entries(gEditedParams)) {
-        if (!key.startsWith(prefix)) continue;
-        const paramKey = key.slice(prefix.length);
-        if (!(paramKey in block)) continue;
-        const original = block[paramKey];
-        if (typeof original === 'boolean') {
-            block[paramKey] = rawVal === 'true' || rawVal === true;
-        } else {
-            const n = parseFloat(rawVal);
-            if (!isNaN(n)) block[paramKey] = n;
+    // Save the block's own params plus its linked cab (Amp+Cab blocks)
+    for (const id of [blockId, block['@cab']].filter(Boolean)) {
+        const target = gPreset.data.tone[dspId][id];
+        if (!target) continue;
+        const prefix = `${dspId}:${id}:`;
+        for (const [key, rawVal] of Object.entries(gEditedParams)) {
+            if (!key.startsWith(prefix)) continue;
+            const paramKey = key.slice(prefix.length);
+            if (!(paramKey in target)) continue;
+            const original = target[paramKey];
+            if (typeof original === 'boolean') {
+                target[paramKey] = rawVal === 'true' || rawVal === true;
+            } else {
+                const n = typeof rawVal === 'number' ? rawVal : parseFloat(rawVal);
+                if (!isNaN(n)) target[paramKey] = n;
+            }
         }
     }
     gEditingBlocks.delete(`${dspId}:${blockId}`);
@@ -1234,7 +1471,14 @@ const STOMP_INCOMPATIBLE_MODELS = new Set([
     'HD2_AppDSPFlowSplitCross', // some routing modes not on Stomp
 ]);
 
-const STOMP_BLOCK_LIMIT = 6;
+// HX Stomp / Stomp XL: 8 blocks since firmware 3.0 (was 6)
+const STOMP_BLOCK_LIMIT = 8;
+
+// Per HX Edit's device list; models with no list are available everywhere.
+function hxAvailableOnStomp(modelId) {
+    const m = hxModel(modelId);
+    return !m || !m.d || m.d.includes(HX_STOMP_DEVICE_ID);
+}
 
 function stompBanner() {
     if (!gPreset) return '';
@@ -1254,6 +1498,8 @@ function stompBanner() {
             const m = blk['@model'] || '';
             if (STOMP_INCOMPATIBLE_MODELS.has(m) || m.startsWith('@')) {
                 incompatibleModels.push(m);
+            } else if (!hxAvailableOnStomp(m)) {
+                incompatibleModels.push(lookupModel(m).name);
             }
         }
     }
@@ -1268,6 +1514,11 @@ function stompBanner() {
         return `<div class="bg-red-950 border border-red-700 rounded-xl px-4 py-3 text-sm text-red-300">
             <strong>Not HX Stomp compatible</strong> - ${blockCount} blocks present, Stomp supports max ${STOMP_BLOCK_LIMIT}.
             Use the Remove button in Block Details to delete blocks from the preset, then export.${modelWarning}${note}
+        </div>`;
+    }
+    if (incompatibleModels.length > 0) {
+        return `<div class="bg-red-950 border border-red-700 rounded-xl px-4 py-3 text-sm text-red-300">
+            <strong>Not HX Stomp compatible</strong> - uses models the Stomp doesn't have.${modelWarning}${note}
         </div>`;
     }
     if (blockCount === STOMP_BLOCK_LIMIT || blockCount === STOMP_BLOCK_LIMIT - 1) {
