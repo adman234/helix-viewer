@@ -62,7 +62,7 @@
             </a>
             <button id="btn-about"
                 class="text-xs text-gray-400 border border-gray-600 hover:border-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition-colors">
-                About <span class="text-gray-600 font-normal">v0.4.0</span>
+                About <span class="text-gray-600 font-normal">v0.5.0</span>
             </button>
         </div>
     </div>
@@ -150,7 +150,7 @@
             <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Changelog</h3>
             <div class="space-y-3 text-sm">
                 <div>
-                    <span class="text-amber-400 font-mono font-bold">v0.4.0</span>
+                    <span class="text-amber-400 font-mono font-bold">v0.5.0</span>
                     <span class="text-gray-600 text-xs ml-2">2026-05-28</span>
                     <ul class="text-gray-400 mt-1 ml-3 space-y-0.5 list-disc list-inside">
                         <li>Inline block parameter editing — edit values directly, highlighted in amber</li>
@@ -899,9 +899,8 @@ function buildChain(dspData, topology) {
         }
     }
 
-    const routing = ['inputA','inputB','split','join','outputA','outputB','cab0'];
     const effects = Object.values(allBlocks)
-        .filter(b => !routing.includes(b._id))
+        .filter(b => !isSystemKey(b._id))
         .sort((a,b) => (a['@position']||0) - (b['@position']||0));
 
     const hasParallel = topology && topology.length > 1;
@@ -935,10 +934,12 @@ function isBlockRemoved(dspId, blockId) {
     return gRemovedDSPs.has(dspId) || gRemovedBlocks.has(`${dspId}:${blockId}`);
 }
 
-const DSP_SYSTEM_KEYS = new Set(['inputA','inputB','split','join','outputA','outputB','cab0']);
+const DSP_SYSTEM_KEYS = new Set(['inputA','inputB','split','join','outputA','outputB']);
+// Routing blocks plus Amp+Cab linked cabs (cab0, cab1, ...), which aren't standalone blocks
+function isSystemKey(k) { return DSP_SYSTEM_KEYS.has(k) || /^cab\d+$/.test(k); }
 function dspHasBlocks(dsp) {
     if (!dsp || typeof dsp !== 'object') return false;
-    return Object.keys(dsp).some(k => !DSP_SYSTEM_KEYS.has(k));
+    return Object.keys(dsp).some(k => !isSystemKey(k));
 }
 
 function snapEnabled(blockId, dspId, fallback) {
@@ -1095,8 +1096,7 @@ function renderChain(dspId, dspData, topology, label) {
 function detailCard(blockId, blockData, dspId) {
     const model = blockData['@model'] || '';
     if (model.startsWith('@')) return '';
-    const skip = ['inputA','inputB','split','join','outputA','outputB','cab0'];
-    if (skip.includes(blockId)) return '';
+    if (isSystemKey(blockId)) return '';
 
     const info    = lookupModel(model);
     const s       = catStyle(info.category);
@@ -1433,7 +1433,7 @@ function renderBlockDetails() {
         html += `<div class="text-xs font-bold uppercase tracking-widest text-gray-600 mt-8 mb-3">${dspLabel}</div>`;
         const blocks = Object.entries(tone[dspId])
             .filter(([,v]) => v && typeof v === 'object' && !Array.isArray(v))
-            .filter(([k]) => !['inputA','inputB','split','join','outputA','outputB','cab0'].includes(k))
+            .filter(([k]) => !isSystemKey(k))
             .sort(([,a],[,b]) => (a['@position']||0) - (b['@position']||0));
         html += '<div class="space-y-3">';
         for (const [blockId, blockData] of blocks) {
@@ -1496,9 +1496,8 @@ function stompBanner() {
         if (gRemovedDSPs.has(dspId)) continue;
         const dsp = tone[dspId];
         if (!dsp) continue;
-        const skip = ['inputA','inputB','split','join','outputA','outputB','cab0'];
         for (const [id, blk] of Object.entries(dsp)) {
-            if (skip.includes(id) || !blk || typeof blk !== 'object') continue;
+            if (isSystemKey(id) || !blk || typeof blk !== 'object') continue;
             if (gRemovedBlocks.has(`${dspId}:${id}`)) continue;
             blockCount++;
             const m = blk['@model'] || '';
@@ -1516,27 +1515,237 @@ function stompBanner() {
 
     const note = `<div class="text-xs mt-2 opacity-60">Toggling a block OFF does not remove it from the preset. Use the <strong>Remove</strong> button in Block Details to actually delete a block and reduce this count.</div>`;
 
+    let status;
     if (blockCount > STOMP_BLOCK_LIMIT) {
-        return `<div class="bg-red-950 border border-red-700 rounded-xl px-4 py-3 text-sm text-red-300">
+        status = `<div class="bg-red-950 border border-red-700 rounded-xl px-4 py-3 text-sm text-red-300">
             <strong>Not HX Stomp compatible</strong> - ${blockCount} blocks present, Stomp supports max ${STOMP_BLOCK_LIMIT}.
             Use the Remove button in Block Details to delete blocks from the preset, then export.${modelWarning}${note}
         </div>`;
-    }
-    if (incompatibleModels.length > 0) {
-        return `<div class="bg-red-950 border border-red-700 rounded-xl px-4 py-3 text-sm text-red-300">
+    } else if (incompatibleModels.length > 0) {
+        status = `<div class="bg-red-950 border border-red-700 rounded-xl px-4 py-3 text-sm text-red-300">
             <strong>Not HX Stomp compatible</strong> - uses models the Stomp doesn't have.${modelWarning}${note}
         </div>`;
-    }
-    if (blockCount === STOMP_BLOCK_LIMIT || blockCount === STOMP_BLOCK_LIMIT - 1) {
-        return `<div class="bg-amber-950 border border-amber-700 rounded-xl px-4 py-3 text-sm text-amber-300">
+    } else if (blockCount === STOMP_BLOCK_LIMIT || blockCount === STOMP_BLOCK_LIMIT - 1) {
+        status = `<div class="bg-amber-950 border border-amber-700 rounded-xl px-4 py-3 text-sm text-amber-300">
             <strong>Might work on HX Stomp</strong> - ${blockCount}/${STOMP_BLOCK_LIMIT} blocks present. Close to the limit;
             actual DSP usage depends on which models are used.${modelWarning}${note}
         </div>`;
-    }
-    return `<div class="bg-green-950 border border-green-800 rounded-xl px-4 py-3 text-sm text-green-400">
+    } else {
+        status = `<div class="bg-green-950 border border-green-800 rounded-xl px-4 py-3 text-sm text-green-400">
         <strong>Likely HX Stomp compatible</strong> - ${blockCount}/${STOMP_BLOCK_LIMIT} blocks present.
         Verify actual DSP headroom on the device.${note}
     </div>`;
+    }
+    return convertNotesHtml() + status + convertPanel(blockCount, incompatibleModels);
+}
+
+// ================================================================
+// CONVERT TO HX STOMP (merge DSP 1 + DSP 2 into one path)
+// ================================================================
+
+// Device IDs from HX Edit's io.models (HelixStomp_* I/O blocks list exactly these two)
+const STOMP_TARGETS = {
+    stompxl: { id: 2162699, name: 'HX Stomp XL', blocks: 8, snapshots: 4 },
+    stomp:   { id: 2162694, name: 'HX Stomp',    blocks: 8, snapshots: 3 },
+};
+const HX_DEVICE_NAMES = {
+    2162689: 'Helix Floor', 2162690: 'Helix Rack', 2162692: 'Helix LT', 2162693: 'HX Effects',
+    2162694: 'HX Stomp', 2162699: 'HX Stomp XL', 2162944: 'Helix Native', 2162945: 'Helix Native',
+};
+const OUTPUT_PATH_2A = 2;   // output_type index for "Path 2A" (DSP 1 feeding DSP 2 in series)
+let gConvertTarget = 'stompxl';
+let gConvertNotes  = null;  // shown once after a conversion
+
+function isStompDevice(id) {
+    return Object.values(STOMP_TARGETS).some(t => t.id === id);
+}
+
+// Non-routing blocks of a DSP in signal order (path A before path B, then by position)
+function orderedBlocks(dsp) {
+    return Object.entries(dsp || {})
+        .filter(([k, v]) => !isSystemKey(k) && v && typeof v === 'object' && !Array.isArray(v))
+        .sort(([, a], [, b]) => (a['@path'] || 0) - (b['@path'] || 0) || (a['@position'] || 0) - (b['@position'] || 0));
+}
+
+function convertPanel(blockCount, incompatibleModels) {
+    const device = gPreset?.data?.device;
+    if (isStompDevice(device)) return '';
+    const t      = STOMP_TARGETS[gConvertTarget];
+    const tooMany = blockCount > t.blocks;
+    const blocked = tooMany || incompatibleModels.length > 0;
+    const reason  = tooMany
+        ? `Remove ${blockCount - t.blocks} more block${blockCount - t.blocks === 1 ? '' : 's'} to fit ${t.name}'s ${t.blocks}-block limit.`
+        : incompatibleModels.length ? 'Remove the models the Stomp doesn\'t have first.' : '';
+    const opts = Object.entries(STOMP_TARGETS).map(([k, v]) =>
+        `<option value="${k}" ${k === gConvertTarget ? 'selected' : ''}>${v.name}</option>`).join('');
+    return `<div class="mt-3 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-300 no-print">
+        <div class="flex flex-wrap items-center gap-2">
+            <strong class="text-white">Convert to</strong>
+            <select onchange="gConvertTarget=this.value; document.getElementById('stomp-section').innerHTML=stompBanner()"
+                class="bg-gray-800 border border-gray-600 text-gray-200 text-xs rounded px-2 py-1">${opts}</select>
+            <span class="text-xs text-gray-500">${blockCount}/${t.blocks} blocks · ${HX_DEVICE_NAMES[device] || 'Unknown device'} preset</span>
+            <button onclick="convertToStomp()" ${blocked ? 'disabled' : ''}
+                class="ml-auto text-xs font-bold px-3 py-1 rounded-lg transition-colors
+                    ${blocked ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-500 text-gray-900'}">
+                Merge DSPs &amp; Convert
+            </button>
+        </div>
+        ${reason ? `<div class="text-xs text-amber-400 mt-2">${reason}</div>` : ''}
+        <div class="text-xs text-gray-500 mt-2">
+            Puts DSP 2's blocks after DSP 1's on a single path, keeps the first ${t.snapshots} snapshots,
+            removes Helix-only settings (Powercab, DT, Variax) and clears footswitch assignments
+            (the Stomp numbers its switches differently; they're listed afterwards so you can reassign them).
+            Review the result, then use <strong>Export .hlx</strong>.
+        </div>
+    </div>`;
+}
+
+function convertNotesHtml() {
+    if (!gConvertNotes) return '';
+    const n = gConvertNotes;
+    const li = arr => arr.map(x => `<li>${x}</li>`).join('');
+    return `<div class="mb-3 bg-sky-950 border border-sky-700 rounded-xl px-4 py-3 text-sm text-sky-200">
+        <div class="flex items-start justify-between gap-3">
+            <strong>Converted to ${n.target} — review, then Export .hlx</strong>
+            <button onclick="gConvertNotes=null; document.getElementById('stomp-section').innerHTML=stompBanner()"
+                class="text-xs text-sky-400 hover:text-sky-200 no-print">Dismiss</button>
+        </div>
+        ${n.footswitches.length ? `<div class="text-xs mt-2">Footswitch assignments to set up again on the device:</div>
+            <ul class="text-xs list-disc ml-5 mt-1">${li(n.footswitches)}</ul>` : ''}
+        ${n.warnings.length ? `<ul class="text-xs list-disc ml-5 mt-2 text-amber-300">${li(n.warnings)}</ul>` : ''}
+        <div class="text-xs mt-2 opacity-70">This conversion is unofficial. If HX Edit rejects the file, please report the error message.</div>
+    </div>`;
+}
+
+function convertToStomp() {
+    if (!gPreset) return;
+    const t    = STOMP_TARGETS[gConvertTarget];
+    const out  = buildExportData();          // pending Remove / Remove DSP applied
+    const tone = out.data.tone;
+    const dsp0 = tone.dsp0 || {};
+    const dsp1 = tone.dsp1 || {};
+    const warnings = [];
+
+    const b0 = orderedBlocks(dsp0);
+    const b1 = orderedBlocks(dsp1);
+    if (b0.length + b1.length > t.blocks) {
+        alert(`${b0.length + b1.length} blocks — ${t.name} allows ${t.blocks}. Remove blocks first.`);
+        return;
+    }
+    const dsp0UsesB = b0.some(([, b]) => (b['@path'] || 0) === 1);
+    if (b1.some(([, b]) => (b['@path'] || 0) === 1)) {
+        warnings.push('DSP 2 had a parallel path B; its blocks were placed in series after DSP 2\'s path A blocks.');
+    }
+    if (b0.length && b1.length && dsp0.outputA?.['@output'] !== OUTPUT_PATH_2A) {
+        warnings.push('DSP 1 did not feed DSP 2 (they ran separately/in parallel). They are now in series, DSP 1 first.');
+    }
+
+    // Build the merged DSP: keep DSP 1's routing blocks, renumber every block.
+    const merged = {};
+    for (const k of ['inputA', 'inputB', 'split', 'join', 'outputA', 'outputB']) {
+        if (dsp0[k]) merged[k] = dsp0[k];
+    }
+    const idMap = {};   // "dsp1:block3" -> "block5"
+    let n = 0, cabN = 0;
+    // Serial presets are packed from position 0; with a parallel path on DSP 1, its positions are kept
+    // and DSP 2's blocks go after the last path A block.
+    let nextPos = dsp0UsesB
+        ? Math.max(-1, ...b0.filter(([, b]) => (b['@path'] || 0) === 0).map(([, b]) => b['@position'] || 0)) + 1
+        : 0;
+    const place = (dspId, dsp, id, blk, keepPos) => {
+        const nb  = { ...blk };
+        const nid = `block${n++}`;
+        idMap[`${dspId}:${id}`] = nid;
+        if (!keepPos) { nb['@path'] = 0; nb['@position'] = nextPos++; }
+        if (nb['@cab'] && dsp[nb['@cab']]) {
+            const cid = `cab${cabN++}`;
+            merged[cid] = dsp[nb['@cab']];
+            idMap[`${dspId}:${nb['@cab']}`] = cid;
+            nb['@cab'] = cid;
+        }
+        merged[nid] = nb;
+    };
+    for (const [id, blk] of b0) place('dsp0', dsp0, id, blk, dsp0UsesB);
+    for (const [id, blk] of b1) place('dsp1', dsp1, id, blk, false);
+    if (nextPos > 8) {
+        alert('Not enough free positions after DSP 1\'s parallel path. Remove blocks or simplify DSP 1\'s routing first.');
+        return;
+    }
+    if (!dsp0UsesB) {
+        // Serial chain: split/join are dormant, so use HX Edit's Stomp template defaults
+        // rather than carrying over leftover mixer settings.
+        merged.split = { '@model': 'HD2_AppDSPFlowSplitY', '@enabled': true, '@position': 0,
+                         '@no_snapshot_bypass': false, bypass: false, BalanceA: 0.5, BalanceB: 0.5 };
+        merged.join  = { '@model': 'HD2_AppDSPFlowJoin', '@enabled': true, '@position': 8,
+                         '@no_snapshot_bypass': false, 'A Level': 0, 'A Pan': 0.5, 'B Level': 0,
+                         'B Pan': 0.5, 'B Polarity': false, Level: 0 };
+    }
+
+    // Stomp I/O blocks. The final output level/pan comes from the DSP that was last in the chain.
+    const lastOut = (b1.length ? dsp1.outputA : dsp0.outputA) || {};
+    merged.inputA  = { ...(dsp0.inputA || {}), '@model': 'HelixStomp_AppDSPFlowInput', '@input': 1 };
+    merged.inputB  = { ...(dsp0.inputB || {}), '@model': 'HelixStomp_AppDSPFlowInput', '@input': 0 };
+    merged.outputA = { '@model': 'HelixStomp_AppDSPFlowOutputMain', '@output': 1,
+                       pan: lastOut.pan ?? 0.5, gain: lastOut.gain ?? 0 };
+    merged.outputB = { '@model': 'HelixStomp_AppDSPFlowOutputSend', '@output': 0,
+                       pan: dsp0.outputB?.pan ?? 0.5, gain: dsp0.outputB?.gain ?? 0, Type: true };
+
+    const remap = byDsp => {
+        const res = {};
+        for (const [dspId, blocks] of Object.entries(byDsp || {})) {
+            for (const [id, v] of Object.entries(blocks || {})) {
+                const nid = idMap[`${dspId}:${id}`];
+                if (nid) (res.dsp0 ||= {})[nid] = v;
+            }
+        }
+        return res;
+    };
+
+    // Snapshots: keep what the target supports, remap block states and controller values.
+    let dropped = 0;
+    for (let i = 0; i <= 7; i++) {
+        const key = `snapshot${i}`;
+        if (!tone[key]) continue;
+        if (i >= t.snapshots) {
+            if (tone[key]['@valid']) dropped++;
+            delete tone[key];
+            continue;
+        }
+        if (tone[key].blocks)      tone[key].blocks      = remap(tone[key].blocks);
+        if (tone[key].controllers) tone[key].controllers = remap(tone[key].controllers);
+    }
+    if (dropped) warnings.push(`${dropped} snapshot${dropped === 1 ? '' : 's'} beyond ${t.name}'s ${t.snapshots} were removed.`);
+
+    if (tone.controller) tone.controller = remap(tone.controller);
+    if (tone.controller && !Object.keys(tone.controller).length) delete tone.controller;
+
+    // Footswitches: record what was assigned, then clear.
+    const footswitches = [];
+    for (const [dspId, blocks] of Object.entries(tone.footswitch || {})) {
+        for (const [id, fs] of Object.entries(blocks || {})) {
+            if (!idMap[`${dspId}:${id}`]) continue;
+            const blk   = (dspId === 'dsp0' ? dsp0 : dsp1)[id];
+            const model = lookupModel(blk?.['@model'] || '').name;
+            const label = fs['@fs_customlabel'] || fs['@fs_label'] || model;
+            footswitches.push(label === model ? model : `${label} (${model})`);
+        }
+    }
+    delete tone.footswitch;
+
+    // Only the keys a Stomp preset has; drop Helix-only hardware sections.
+    for (const k of Object.keys(tone)) {
+        if (!/^(dsp[01]|global|snapshot\d|controller)$/.test(k)) delete tone[k];
+    }
+    tone.dsp0 = merged;
+    tone.dsp1 = {};
+    const g = tone.global || (tone.global = {});
+    for (const k of Object.keys(g)) if (/^@(Powercab|Dt|guitarpad)/.test(k)) delete g[k];
+    Object.assign(g, { '@topology1': '', '@cursor_dsp': 0, '@cursor_path': 0, '@cursor_position': 0, '@cursor_group': '' });
+    if ((g['@current_snapshot'] ?? 0) >= t.snapshots) g['@current_snapshot'] = 0;
+    out.data.device = t.id;
+
+    gConvertNotes = { target: t.name, footswitches, warnings };
+    renderPreset(out);
 }
 
 // ================================================================
@@ -1880,6 +2089,7 @@ function loadFile(file) {
             try {
                 const data = JSON.parse(e.target.result);
                 if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset - missing L6Preset schema tag.');
+                gConvertNotes = null;
                 renderPreset(data);
                 const fd = new FormData();
                 fd.append('file', file, file.name);

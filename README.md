@@ -19,6 +19,7 @@ Upload a preset file to explore its signal chain, block parameters, snapshots, f
 - **Remove blocks / DSPs**: soft-mark blocks for removal (shown with strikethrough); removed blocks are excluded when exporting
 - **Export modified preset**: download the modified `.hlx` file with your changes applied
 - **HX Stomp compatibility check**: warns when a preset exceeds the Stomp's 8-block limit or uses models the Stomp doesn't have
+- **Convert Helix presets to HX Stomp / Stomp XL** — merge DSP 1 and DSP 2 into a single chain, remove blocks down to the 8-block limit, then convert. Snapshots, expression pedal assignments and block states carry over; Helix-only settings are dropped and footswitch assignments are listed for you to reassign
 - **IR slot viewer**: see which impulse response slots are used and their UUIDs
 - **MIDI / controller assignments**: view CC and controller mappings
 - **Footswitch assignments**: see which footswitch controls each block
@@ -45,6 +46,16 @@ Upload a preset file to explore its signal chain, block parameters, snapshots, f
 
 - Click any snapshot card to switch the active snapshot. Block states in the signal chain update to reflect that snapshot.
 - The active snapshot is shown with an amber dot indicator.
+
+### Converting a Helix preset to HX Stomp / Stomp XL
+
+HX Edit refuses to load Helix Floor/LT/Rack presets on a Stomp. To convert one:
+1. Load the Helix preset. The compatibility banner shows the combined block count of both DSPs.
+2. Click **Remove** on blocks until you're at 8 or fewer.
+3. Pick **HX Stomp XL** (4 snapshots) or **HX Stomp** (3 snapshots) and click **Merge DSPs & Convert**.
+4. Review the result, reassign footswitches listed in the blue box, then **Export .hlx** and import it with HX Edit.
+
+The conversion is unofficial. DSP usage isn't checked, so a preset under 8 blocks can still be too heavy for the Stomp's single DSP.
 
 ### Exporting
 
