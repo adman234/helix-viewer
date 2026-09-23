@@ -1,44 +1,45 @@
 # Helix Preset Viewer
 
-A free, open-source visualizer for Line 6 Helix / HX Stomp / HX Effects preset files (`.hlx`).
+A free, open-source visualizer and editor for Line 6 Helix / HX Stomp / HX Effects preset files (`.hlx`), with read-only support for Bass PODxt / PODxt family presets (`.l6t`).
 
-Upload a preset file to explore its signal chain, block parameters, snapshots, footswitch assignments, IR slots, and MIDI/controller mappings — all in your browser, no account required.
+HX Edit only shows a preset once it is loaded onto a connected device. This shows any preset file in the browser, so you can see what a downloaded or shared preset does, compare snapshots, and make quick edits without the hardware.
+
+Upload a preset file to explore its signal chain, block parameters, snapshots, footswitch assignments, IR slots, and MIDI/controller mappings, all in your browser, no account required.
 
 ![Screenshot](Screenshot.png)
 
----
 
 ## Features
 
-- **Signal chain visualization** — see DSP 1 and DSP 2 blocks laid out in order, including parallel A/B paths
-- **Block details** — exact model names, parameter names, units and ranges from HX Edit's own model database (677 models); values changed from the model default are highlighted, and hovering shows the default and range
-- **Edit parameters in real units** — enter dB, ms, Hz, % or knob values just like HX Edit; out-of-range values are clamped to the model's limits
-- **Snapshot switching** — click any snapshot to preview how blocks change state across snapshots
-- **Toggle blocks on/off** — change block state within the active snapshot
-- **Remove blocks / DSPs** — soft-mark blocks for removal (shown with strikethrough); removed blocks are excluded when exporting
-- **Export modified preset** — download the modified `.hlx` file with your changes applied
-- **HX Stomp compatibility check** — warns when a preset exceeds the Stomp's 8-block limit or uses models the Stomp doesn't have
-- **IR slot viewer** — see which impulse response slots are used and their UUIDs
-- **MIDI / controller assignments** — view CC and controller mappings
-- **Footswitch assignments** — see which footswitch controls each block
-- **Print view** — print-friendly layout via browser print (`Ctrl+P`)
-- **Session restore** — last loaded preset is saved in local storage and restored on next visit
+- **Signal chain visualization**: see DSP 1 and DSP 2 blocks laid out in order, including parallel A/B paths
+- **Block details**: exact model names, parameter names, units and ranges from HX Edit's own model database (677 models); values changed from the model default are highlighted, and hovering shows the default and range
+- **Edit parameters in real units**: enter dB, ms, Hz, % or knob values just like HX Edit; out-of-range values are clamped to the model's limits
+- **Snapshot switching**: click any snapshot to preview how blocks change state across snapshots
+- **Toggle blocks on/off**: change block state within the active snapshot
+- **Remove blocks / DSPs**: soft-mark blocks for removal (shown with strikethrough); removed blocks are excluded when exporting
+- **Export modified preset**: download the modified `.hlx` file with your changes applied
+- **HX Stomp compatibility check**: warns when a preset exceeds the Stomp's 8-block limit or uses models the Stomp doesn't have
+- **IR slot viewer**: see which impulse response slots are used and their UUIDs
+- **MIDI / controller assignments**: view CC and controller mappings
+- **Footswitch assignments**: see which footswitch controls each block
+- **Print view**: print-friendly layout via browser print (`Ctrl+P`)
+- **Session restore**: last loaded preset is saved in local storage and restored on next visit
+- **PODxt presets (`.l6t`)**: view the signal chain and every block's parameters, with per-model parameter names and units
 
----
 
 ## How to Use
 
 1. **Open the app** in your browser (see deployment options below).
-2. **Drop a `.hlx` file** onto the upload area, or click **Choose File** to browse.
+2. **Drop a `.hlx` or `.l6t` file** onto the upload area, or click **Choose File** to browse.
 3. The signal chain, block details, snapshots, and other sections load automatically.
 
 ### Working with blocks
 
 - **Click a block chip** in the signal chain to scroll to its detail card.
-- **ON / OFF button** — toggles the block in the active snapshot without affecting other snapshots.
-- **Remove button** — marks the block for removal on export (strikethrough). Click **Undo Remove** to restore it. The block stays in view until you export.
-- **Remove DSP** — marks an entire DSP path for removal. The chain collapses to a stub; click **Restore DSP** to undo.
-- **Edit button** — edit parameters in the units HX Edit shows. Dropdown params (mic, note sync, ratio, etc.) show their real options. Amp+Cab blocks include the cab's params. Click **Save** to apply.
+- **ON / OFF button**: toggles the block in the active snapshot without affecting other snapshots.
+- **Remove button**: marks the block for removal on export (strikethrough). Click **Undo Remove** to restore it. The block stays in view until you export.
+- **Remove DSP**: marks an entire DSP path for removal. The chain collapses to a stub; click **Restore DSP** to undo.
+- **Edit button**: edit parameters in the units HX Edit shows. Dropdown params (mic, note sync, ratio, etc.) show their real options. Amp+Cab blocks include the cab's params. Click **Save** to apply.
 
 ### Snapshots
 
@@ -52,7 +53,6 @@ Click **Export .hlx** to download the preset with your changes applied:
 - Edited parameter values are saved.
 - Removed blocks and DSPs are permanently deleted from the exported file.
 
----
 
 ## Deployment
 
@@ -92,19 +92,16 @@ python tools/build_models.py
 
 On Windows it reads `C:\Program Files (x86)\Line6\HX Edites` by default; pass a different path as the first argument if needed.
 
----
 
 ## Privacy
 
-Preset files are parsed entirely in your browser — no data is sent to any external server. If the backend upload service is running (Docker deployment), uploaded files are saved locally to the `/uploads` directory on your own host only.
+Preset files are parsed entirely in your browser. No data is sent to any external server. If the backend upload service is running (Docker deployment), uploaded files are saved locally to the `/uploads` directory on your own host only.
 
----
 
 ## Legal
 
 This project is not affiliated with, endorsed by, or connected to Line 6, Inc. or Yamaha Corporation in any way. "Helix", "HX Stomp", "HX Edit", and related names are trademarks of their respective owners. Preset files are the property of their creators. Use at your own risk.
 
----
 
 ## Support
 
