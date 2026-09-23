@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Minimal HLX upload receiver. Saves files to /uploads with a timestamp prefix."""
-import cgi
 import os
 import time
+from email.parser import BytesParser
+from email.policy import HTTP
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 UPLOAD_DIR = os.environ.get('UPLOAD_DIR', '/uploads')
@@ -10,6 +11,21 @@ PORT       = 3000
 MAX_BYTES  = 5 * 1024 * 1024  # 5 MB
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+def parse_file_field(content_type, body, field='file'):
+    """Return (filename, bytes) for a multipart/form-data field, or None.
+
+    Uses the email package because the cgi module was removed in Python 3.13.
+    """
+    if not content_type or not content_type.startswith('multipart/form-data'):
+        return None
+    msg = BytesParser(policy=HTTP).parsebytes(
+        b'Content-Type: ' + content_type.encode('latin-1') + b'\r\n\r\n' + body)
+    for part in msg.iter_parts():
+        if part.get_param('name', header='content-disposition') == field:
+            return part.get_filename(), part.get_payload(decode=True) or b''
+    return None
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
@@ -31,19 +47,15 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={'REQUEST_METHOD': 'POST', 'CONTENT_TYPE': self.headers['Content-Type']},
-        )
-        item = form.getvalue('file')
-        if item is None:
+        body = self.rfile.read(length)
+        field = parse_file_field(self.headers.get('Content-Type'), body)
+        if field is None:
             self.send_response(400)
             self.end_headers()
             return
 
-        raw = item if isinstance(item, bytes) else item.encode()
-        name = (form['file'].filename or 'unknown.hlx').replace('/', '_').replace('\\', '_')
+        filename, raw = field
+        name = (filename or 'unknown.hlx').replace('/', '_').replace('\\', '_')
         ts   = int(time.time())
         dest = os.path.join(UPLOAD_DIR, f'{ts}_{name}')
         with open(dest, 'wb') as f:
