@@ -15,8 +15,10 @@ Usage:
 Re-run after updating HX Edit to pick up new models from a firmware release.
 """
 import glob
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import date
@@ -25,7 +27,8 @@ DEFAULT_RES = {
     'win32':  r'C:\Program Files (x86)\Line6\HX Edit\res',
     'darwin': '/Applications/HX Edit.app/Contents/Resources',
 }
-OUT = os.path.join(os.path.dirname(__file__), '..', 'html', 'models.js')
+OUT   = os.path.join(os.path.dirname(__file__), '..', 'html', 'models.js')
+INDEX = os.path.join(os.path.dirname(__file__), '..', 'html', 'index.html')
 
 # Keys from HelixControls.json the viewer needs for scaling/formatting.
 CONTROL_KEYS = ('format', 'formatUnits', 'isDiscrete', 'dspToDisplayScale',
@@ -169,6 +172,17 @@ def main():
           'window.HX_DB = ' + json.dumps(db, separators=(',', ':'), ensure_ascii=False) + ';\n')
     with open(OUT, 'w', encoding='utf-8', newline='\n') as f:
         f.write(js)
+
+    # Cache-bust: point index.html at this exact build so browsers never pair
+    # a new page with a stale models.js.
+    ver = hashlib.sha1(js.encode('utf-8')).hexdigest()[:10]
+    with open(INDEX, encoding='utf-8', newline='') as f:
+        html = f.read()
+    html, n = re.subn(r'src="models\.js(\?v=[^"]*)?"', f'src="models.js?v={ver}"', html)
+    if n != 1:
+        sys.exit('Could not find the models.js <script> tag in html/index.html')
+    with open(INDEX, 'w', encoding='utf-8', newline='') as f:
+        f.write(html)
     print(f"{db['source']}: {len(db['models'])} models, "
           f"{sum(len(m['p']) for m in db['models'].values())} params, "
           f"{len(db['controls'])} display types -> {os.path.normpath(OUT)} "
