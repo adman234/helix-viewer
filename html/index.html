@@ -417,19 +417,25 @@ const CAT_STYLE = {
     Output:   { bg:'bg-gray-900',   border:'border-gray-700',   text:'text-gray-400',   badge:'bg-gray-700',   dot:'bg-gray-500'   },
     Unknown:  { bg:'bg-gray-900',   border:'border-gray-700',   text:'text-gray-400',   badge:'bg-gray-700',   dot:'bg-gray-500'   },
 };
-// HX Edit catalog category names → styles above
-Object.assign(CAT_STYLE, {
-    'Distortion':  CAT_STYLE.Drive,
-    'Modulation':  CAT_STYLE.Phaser,
-    'Pitch/Synth': CAT_STYLE.Pitch,
-    'Preamp':      CAT_STYLE.Amp,
-    'Cab':         CAT_STYLE.Cabinet,
-    'Volume/Pan':  CAT_STYLE.Volume,
-    'Looper':      CAT_STYLE.Volume,
-    'Send/Return': CAT_STYLE.Routing,
-    'Split':       CAT_STYLE.Routing,
-    'Merge':       CAT_STYLE.Routing,
-});
+// Official HX category colors (HX Edit's HX_ModelCatalog.json, via models.js) override the styles above.
+// Tailwind's CDN build generates these arbitrary-value classes on the fly.
+function hexStyle(hex) {
+    const mix = (h, t) => '#' + [1, 3, 5].map(i => {
+        const c = parseInt(h.slice(i, i + 2), 16);
+        return Math.round(c + (255 - c) * t).toString(16).padStart(2, '0');
+    }).join('');
+    const light = mix(hex, 0.45);   // readable text on the dark card
+    return { bg: `bg-[${hex}]/[0.08]`, border: `border-[${hex}]/70`, text: `text-[${light}]`,
+             badge: `bg-[${hex}]/30`, dot: `bg-[${hex}]` };
+}
+if (window.HX_DB?.categories) {
+    for (const [name, hex] of Object.entries(window.HX_DB.categories)) CAT_STYLE[name] = hexStyle(hex);
+    // Category names used for models not in the database (parsed from the model ID)
+    const alias = { Drive: 'Distortion', Cabinet: 'Cab', Chorus: 'Modulation', Flanger: 'Modulation',
+                    Phaser: 'Modulation', Tremolo: 'Modulation', Vibrato: 'Modulation', Pitch: 'Pitch/Synth',
+                    Synth: 'Pitch/Synth', Volume: 'Volume/Pan', Routing: 'Split' };
+    for (const [from, to] of Object.entries(alias)) if (CAT_STYLE[to]) CAT_STYLE[from] = CAT_STYLE[to];
+}
 
 // ================================================================
 // PARAMETER TOOLTIPS

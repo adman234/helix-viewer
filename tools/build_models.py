@@ -5,7 +5,8 @@ Build html/models.js from the model definitions that ship with Line 6 HX Edit.
 HX Edit installs its full model database as JSON under its `res` folder:
   *.models              every model, with each parameter's id, name, range,
                         default and displayType
-  HX_ModelCatalog.json  category tree, friendly names and on-screen param order
+  HX_ModelCatalog.json  category tree and colors, friendly names and on-screen
+                        param order
   HelixControls.json    how each displayType is scaled and formatted (units)
 
 Usage:
@@ -99,6 +100,13 @@ def build_catalog(res):
     return info
 
 
+def build_category_colors(res):
+    """Category name -> '#rrggbb', the block colors HX Edit and the devices use."""
+    cat = load(os.path.join(res, 'HX_ModelCatalog.json'))
+    return {c['name']: '#' + c['color'][2:].lower()
+            for c in cat['categories'] if c.get('color', '').startswith('0x')}
+
+
 def build_models(res, catalog):
     models = {}
     for path in sorted(glob.glob(os.path.join(res, '*.models'))):
@@ -152,6 +160,7 @@ def main():
     db = {
         'source': 'HX Edit ' + (hx_edit_version(res) or 'unknown'),
         'built': date.today().isoformat(),
+        'categories': build_category_colors(res),
         'controls': build_controls(res),
         'models': build_models(res, catalog),
     }
