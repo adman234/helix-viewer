@@ -90,7 +90,7 @@ Model and parameter definitions live in `html/models.js`, generated from the JSO
 python tools/build_models.py
 ```
 
-On Windows it reads `C:\Program Files (x86)\Line6\HX Edites` by default; pass a different path as the first argument if needed.
+On Windows it reads `C:\Program Files (x86)\Line6\HX Edit\res` by default; pass a different path as the first argument if needed.
 
 
 ## Privacy
