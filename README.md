@@ -30,7 +30,7 @@ Upload a preset file to explore its signal chain, block parameters, snapshots, f
 
 ## How to Use
 
-1. **Open the app** at https://adman234.github.io/helix-viewer/ (or run it locally, see below).
+1. **Open the app** at https://adman234.github.io/helix-viewer/, or self-host it with Docker (see [Running it](#running-it)).
 2. **Drop a `.hlx` or `.l6t` file** onto the upload area, or click **Choose File** to browse.
 3. The signal chain, block details, snapshots, and other sections load automatically.
 
@@ -65,19 +65,35 @@ Click **Export .hlx** to download the preset with your changes applied:
 - Removed blocks and DSPs are permanently deleted from the exported file.
 
 
-## Use it online
+## Running it
+
+There are two ways to run Helix Preset Viewer.
+
+### Online (GitHub Pages)
 
 **https://adman234.github.io/helix-viewer/**
 
-The site is static and runs entirely in your browser. It deploys to GitHub Pages automatically on every push to `master` (see `.github/workflows/pages.yml`).
+Nothing to install. The site is static and runs entirely in your browser. It deploys to GitHub Pages automatically on every push to `master` (see `.github/workflows/pages.yml`).
 
-### Running locally
+You can also run the same site locally: open `html/index.html` in any modern browser, or serve the `html/` folder with any static web server (for example `python -m http.server -d html`).
 
-Open `html/index.html` directly in any modern browser, or serve the `html/` folder with any static web server (for example `python -m http.server -d html`).
+### Self-hosted (Docker)
 
-### Docker (legacy)
+The Docker version adds a small upload server alongside nginx that keeps a copy of every preset you load or export in a folder on your host. It lives on the [`docker`](https://github.com/adman234/helix-viewer/tree/docker) branch, and every push to that branch publishes `ghcr.io/adman234/helix-viewer:latest`.
 
-The app used to ship as a Docker image (nginx plus a small upload server that kept a copy of each preset). That version is frozen on the [`docker`](https://github.com/adman234/helix-viewer/tree/docker) branch and the `docker-final` tag. The `ghcr.io/adman234/helix-viewer:latest` image still exists but no longer gets updates.
+```bash
+git clone -b docker https://github.com/adman234/helix-viewer.git
+cd helix-viewer
+docker compose up -d
+```
+
+The app is then at `http://localhost:7860`, and presets are saved to `./uploads/`.
+
+For Unraid or another container manager, add the image directly:
+
+- **Image:** `ghcr.io/adman234/helix-viewer:latest`
+- **Port:** `7860:80`
+- **Volume:** map container path `/uploads` to a host folder (for example `/mnt/user/appdata/helix/uploads`)
 
 ### Updating the model database
 
@@ -92,7 +108,9 @@ On Windows it reads `C:\Program Files (x86)\Line6\HX Edit\res` by default; pass 
 
 ## Privacy
 
-Preset files are parsed entirely in your browser and are never uploaded anywhere. The last loaded preset is kept in your browser's local storage so it can be restored on your next visit.
+Preset files are parsed entirely in your browser and are never sent to any outside server. The last loaded preset is kept in your browser's local storage so it can be restored on your next visit.
+
+If you self-host with Docker, the upload server also saves a copy of each preset to the `/uploads` folder on your own machine. The GitHub Pages site has no server, so nothing is stored outside your browser.
 
 
 ## Legal
