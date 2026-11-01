@@ -150,6 +150,17 @@
             <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Changelog</h3>
             <div class="space-y-3 text-sm">
                 <div>
+                    <span class="text-amber-400 font-mono font-bold">v0.6.0</span>
+                    <span class="text-gray-600 text-xs ml-2">2026-11-01</span>
+                    <ul class="text-gray-400 mt-1 ml-3 space-y-0.5 list-disc list-inside">
+                        <li>Now hosted on GitHub Pages; preset files never leave your browser</li>
+                        <li>Exact params, units and ranges from HX Edit's model database</li>
+                        <li>Official HX category colors</li>
+                        <li>Merge DSPs &amp; Convert: Helix presets to HX Stomp / Stomp XL</li>
+                        <li>Read-only .l6t (PODxt family) support</li>
+                    </ul>
+                </div>
+                <div>
                     <span class="text-amber-400 font-mono font-bold">v0.5.0</span>
                     <span class="text-gray-600 text-xs ml-2">2026-05-28</span>
                     <ul class="text-gray-400 mt-1 ml-3 space-y-0.5 list-disc list-inside">
@@ -1460,11 +1471,6 @@ function exportPreset() {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-
-    // Save to /uploads (fails silently if backend unavailable)
-    const fd = new FormData();
-    fd.append('file', blob, filename);
-    fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
 }
 
 // ================================================================
@@ -2075,9 +2081,6 @@ function loadFile(file) {
             try {
                 const data = parseL6T(e.target.result);
                 renderL6TPreset(data);
-                const fd = new FormData();
-                fd.append('file', file, file.name);
-                fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
             } catch(err) {
                 showErr(err.message || 'Could not parse L6T file.');
             }
@@ -2091,9 +2094,6 @@ function loadFile(file) {
                 if (data.schema !== 'L6Preset') throw new Error('Not a valid Helix preset - missing L6Preset schema tag.');
                 gConvertNotes = null;
                 renderPreset(data);
-                const fd = new FormData();
-                fd.append('file', file, file.name);
-                fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
             } catch(err) {
                 showErr(err.message || 'Could not parse the file.');
             }

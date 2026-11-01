@@ -30,7 +30,7 @@ Upload a preset file to explore its signal chain, block parameters, snapshots, f
 
 ## How to Use
 
-1. **Open the app** in your browser (see deployment options below).
+1. **Open the app** at https://adman234.github.io/helix-viewer/ (or run it locally, see below).
 2. **Drop a `.hlx` or `.l6t` file** onto the upload area, or click **Choose File** to browse.
 3. The signal chain, block details, snapshots, and other sections load automatically.
 
@@ -65,33 +65,19 @@ Click **Export .hlx** to download the preset with your changes applied:
 - Removed blocks and DSPs are permanently deleted from the exported file.
 
 
-## Deployment
+## Use it online
 
-### Docker (recommended)
+**https://adman234.github.io/helix-viewer/**
 
-Clone the repo and run with Docker Compose:
+The site is static and runs entirely in your browser. It deploys to GitHub Pages automatically on every push to `master` (see `.github/workflows/pages.yml`).
 
-```bash
-git clone https://github.com/adman234/helix-viewer.git
-cd helix-viewer
-docker compose up -d
-```
+### Running locally
 
-The app will be available at `http://localhost:7860`.
+Open `html/index.html` directly in any modern browser, or serve the `html/` folder with any static web server (for example `python -m http.server -d html`).
 
-Uploaded preset files are saved to `./uploads/` on the host.
+### Docker (legacy)
 
-### Unraid
-
-Use the docker-compose above, or add the container manually:
-
-- **Image:** `ghcr.io/adman234/helix-viewer:latest`
-- **Port:** `7860:80`
-- **Volume:** Map container path `/uploads` to a host path (e.g. `/mnt/user/appdata/helix/uploads`) to persist uploaded and exported preset files.
-
-### Running locally (no Docker)
-
-Open `html/index.html` directly in any modern browser. The upload persistence backend won't be available, but all other features work fully client-side.
+The app used to ship as a Docker image (nginx plus a small upload server that kept a copy of each preset). That version is frozen on the [`docker`](https://github.com/adman234/helix-viewer/tree/docker) branch and the `docker-final` tag. The `ghcr.io/adman234/helix-viewer:latest` image still exists but no longer gets updates.
 
 ### Updating the model database
 
@@ -106,7 +92,7 @@ On Windows it reads `C:\Program Files (x86)\Line6\HX Edit\res` by default; pass 
 
 ## Privacy
 
-Preset files are parsed entirely in your browser. No data is sent to any external server. If the backend upload service is running (Docker deployment), uploaded files are saved locally to the `/uploads` directory on your own host only.
+Preset files are parsed entirely in your browser and are never uploaded anywhere. The last loaded preset is kept in your browser's local storage so it can be restored on your next visit.
 
 
 ## Legal
