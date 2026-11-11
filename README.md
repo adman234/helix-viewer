@@ -79,10 +79,10 @@ You can also run the same site locally: open `html/index.html` in any modern bro
 
 ### Self-hosted (Docker)
 
-The Docker version adds a small upload server alongside nginx that keeps a copy of every preset you load or export in a folder on your host. It lives on the [`docker`](https://github.com/adman234/helix-viewer/tree/docker) branch, and every push to that branch publishes `ghcr.io/adman234/helix-viewer:latest`.
+The Docker version adds a small upload server alongside nginx that keeps a copy of every preset you export in a folder on your host. It is built from the same code as the website: every push to `master` updates the site and publishes `ghcr.io/adman234/helix-viewer:latest`.
 
 ```bash
-git clone -b docker https://github.com/adman234/helix-viewer.git
+git clone https://github.com/adman234/helix-viewer.git
 cd helix-viewer
 docker compose up -d
 ```

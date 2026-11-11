@@ -240,6 +240,7 @@
 </div>
 
 <script src="models.js?v=4baed3b938"></script>
+<script src="server-config.js"></script>
 <script>
 // ================================================================
 // MODEL DATABASE
@@ -1471,6 +1472,14 @@ function exportPreset() {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+
+    // The Docker image keeps a copy in its /uploads folder. The GitHub Pages
+    // site has no server, so there the preset never leaves the browser.
+    if (window.HELIX_UPLOAD_SERVER) {
+        const fd = new FormData();
+        fd.append('file', blob, filename);
+        fetch('/api/upload', { method: 'POST', body: fd }).catch(() => {});
+    }
 }
 
 // ================================================================

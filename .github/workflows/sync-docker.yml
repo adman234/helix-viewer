@@ -1,0 +1,50 @@
+name: Sync docker branch
+
+# After every push to master, merge master into docker so the Docker image is rebuilt with it.
+# The push uses a deploy key (secret SYNC_DEPLOY_KEY): the Actions token may not
+# push workflow-file changes, and its pushes would not start the docker image build.
+# If the merge conflicts, nothing is pushed and an issue is opened instead.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: sync-docker
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: docker
+          fetch-depth: 0
+          ssh-key: ${{ secrets.SYNC_DEPLOY_KEY }}
+
+      - name: Merge master into docker
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          before=$(git rev-parse HEAD)
+          if ! git merge --no-edit origin/master; then
+            git merge --abort
+            title="docker branch: master does not merge cleanly"
+            if [ -z "$(gh issue list --state open --search "in:title \"$title\"" --json number -q '.[].number')" ]; then
+              gh issue create --title "$title" --body "The sync workflow could not merge master into docker (run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}). Merge it by hand and push docker; the Docker image builds on push."
+            fi
+            exit 1
+          fi
+          if [ "$(git rev-parse HEAD)" = "$before" ]; then
+            echo "docker already contains master"
+            exit 0
+          fi
+          git push origin docker
