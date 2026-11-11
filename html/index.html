@@ -164,7 +164,7 @@
                     <span class="text-amber-400 font-mono font-bold">v0.5.0</span>
                     <span class="text-gray-600 text-xs ml-2">2026-05-28</span>
                     <ul class="text-gray-400 mt-1 ml-3 space-y-0.5 list-disc list-inside">
-                        <li>Inline block parameter editing — edit values directly, highlighted in amber</li>
+                        <li>Inline block parameter editing: edit values directly, highlighted in amber</li>
                         <li>Raw JSON viewer with syntax highlighting</li>
                         <li>Soft-remove blocks and DSPs with undo (applied only on export)</li>
                         <li>Export saves a copy to server /uploads automatically</li>
@@ -1156,7 +1156,7 @@ function detailCard(blockId, blockData, dspId) {
     return `<div id="detail-${dspId}-${blockId}"
                  class="${s.bg} border ${s.border} rounded-2xl p-5 ${cardOpacity} ${editRing}">
         ${removed ? `<div class="text-xs text-red-500 mb-3">Will be removed on export</div>` : ''}
-        ${editing  ? `<div class="text-xs text-amber-500/70 mb-3">${hxModel(model) ? 'Editing — enter values in the units shown (same as HX Edit). Out-of-range values are clamped to the model\'s limits. Changes are written to the preset on export.' : 'Editing — this model is not in the database, so enter raw preset values. Changes are written to the preset on export.'}</div>` : ''}
+        ${editing  ? `<div class="text-xs text-amber-500/70 mb-3">${hxModel(model) ? 'Editing: enter values in the units shown (same as HX Edit). Out-of-range values are clamped to the model\'s limits. Changes are written to the preset on export.' : 'Editing, this model is not in the database, so enter raw preset values. Changes are written to the preset on export.'}</div>` : ''}
         <div class="flex items-start justify-between gap-4 mb-4">
             <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -1279,7 +1279,7 @@ function toggleBlock(dspId, blockId) {
     if (!block) return;
     const wasOn = snapEnabled(blockId, dspId, block['@enabled'] !== false);
 
-    // Write to the ACTIVE SNAPSHOT only — never mutate base block['@enabled'],
+    // Write to the ACTIVE SNAPSHOT only, never mutate base block['@enabled'],
     // otherwise toggling in one snapshot changes the fallback for all others.
     const snap = gPreset.data.tone[`snapshot${gActiveSnapshot}`];
     if (snap) {
@@ -1612,7 +1612,7 @@ function convertNotesHtml() {
     const li = arr => arr.map(x => `<li>${x}</li>`).join('');
     return `<div class="mb-3 bg-sky-950 border border-sky-700 rounded-xl px-4 py-3 text-sm text-sky-200">
         <div class="flex items-start justify-between gap-3">
-            <strong>Converted to ${n.target} — review, then Export .hlx</strong>
+            <strong>Converted to ${n.target}: review, then Export .hlx</strong>
             <button onclick="gConvertNotes=null; document.getElementById('stomp-section').innerHTML=stompBanner()"
                 class="text-xs text-sky-400 hover:text-sky-200 no-print">Dismiss</button>
         </div>
@@ -1635,7 +1635,7 @@ function convertToStomp() {
     const b0 = orderedBlocks(dsp0);
     const b1 = orderedBlocks(dsp1);
     if (b0.length + b1.length > t.blocks) {
-        alert(`${b0.length + b1.length} blocks — ${t.name} allows ${t.blocks}. Remove blocks first.`);
+        alert(`${b0.length + b1.length} blocks - ${t.name} allows ${t.blocks}. Remove blocks first.`);
         return;
     }
     const dsp0UsesB = b0.some(([, b]) => (b['@path'] || 0) === 1);
@@ -1901,7 +1901,7 @@ function renderMidi(data) {
             <span class="text-gray-600 text-sm group-open:hidden">+ show</span>
             <span class="text-gray-600 text-sm hidden group-open:inline">- hide</span>
         </summary>
-        <p class="text-xs text-gray-600 mt-1 mb-4">Read only — shows controller and expression pedal mappings as defined in the preset.</p>
+        <p class="text-xs text-gray-600 mt-1 mb-4">Read only: shows controller and expression pedal mappings as defined in the preset.</p>
         <div class="space-y-2">
         ${rows.map(r => {
             const label = ctrlLabel(r.ctrlNum);
@@ -1951,7 +1951,7 @@ function renderFootswitches(tone) {
 
     return `<div>
         <h2 class="text-xl font-bold text-white mb-1">Footswitches</h2>
-        <p class="text-xs text-gray-600 mb-4">Read only — for reference only, footswitch assignments cannot be edited here.</p>
+        <p class="text-xs text-gray-600 mb-4">Read only: footswitch assignments cannot be edited here.</p>
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         ${unique.map(f => `
             <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 cursor-pointer hover:border-gray-600 transition-colors"
@@ -2249,17 +2249,17 @@ const L6T_MODEL_MAP = {
     0x020C0002:{name:'4-Band EQ',     cat:'eq'},
     0x02070000:{name:'Volume Pedal',  cat:'utility'},
     0xFFFFFFFF:{name:'Empty',         cat:'empty'},
-    // Stomp — Distortion
+    // Stomp - Distortion
     0x02050000:{name:'Facial Fuzz',   cat:'dist'}, 0x02050001:{name:'Tube Drive',    cat:'dist'},
     0x02050002:{name:'Fuzz Pi',       cat:'dist'}, 0x02050003:{name:'Screamer',      cat:'dist'},
     0x02050004:{name:'Octave Fuzz',   cat:'dist'}, 0x02050005:{name:'Classic Dist',  cat:'dist'},
     0x02050006:{name:'Killer Z',      cat:'dist'}, 0x02050007:{name:'Boost + EQ',    cat:'dist'},
     0x02050008:{name:'Bass Overdrive',cat:'dist'}, 0x02050009:{name:'Bronze Master', cat:'dist'},
-    // Stomp — Dynamics
+    // Stomp - Dynamics
     0x02000002:{name:'Blue Comp',     cat:'dynamics'}, 0x02000003:{name:'Blue Comp Treb',cat:'dynamics'},
     0x02000004:{name:'Red Comp',      cat:'dynamics'}, 0x02000005:{name:'Vetta Comp',    cat:'dynamics'},
     0x02000006:{name:'Vetta Juice',   cat:'dynamics'}, 0x02000007:{name:'Auto Swell',    cat:'dynamics'},
-    // Stomp — Filter / Synth
+    // Stomp - Filter / Synth
     0x020A0000:{name:'Auto Wah',         cat:'filter'}, 0x020A0001:{name:'Synth Lead',      cat:'synth'},
     0x020A0002:{name:'Synth String',     cat:'synth'},  0x020A0003:{name:'Synth FX',        cat:'synth'},
     0x020A0004:{name:'Synth Harmony',    cat:'synth'},  0x020A0005:{name:'Buzz Wave',        cat:'synth'},
@@ -2312,7 +2312,7 @@ const L6T_MODEL_PARAMS = {
     0x020B0001:{0x100000:'Threshold',0x100001:'Gain'},
     0x020B0002:{0x100000:'Room'},
     0x02070000:{0x100004:'Min Volume'},
-    // Stomp — distortion/OD
+    // Stomp - distortion/OD
     0x02050000:{0x100001:'Drive',0x100002:'Gain',0x100003:'Tone'},
     0x02050001:{0x100001:'Drive',0x100002:'Treble',0x100003:'Mid'},
     0x02050002:{0x100001:'Drive',0x100002:'Gain',0x100003:'Tone'},
@@ -2323,14 +2323,14 @@ const L6T_MODEL_PARAMS = {
     0x02050007:{0x100001:'Gain',0x100002:'Bass',0x100003:'Mid',0x100004:'Treble',0x100005:'Mid Freq'},
     0x02050008:{0x100001:'Bass',0x100002:'Treble',0x100003:'Drive',0x100004:'Gain'},
     0x02050009:{0x100001:'Drive',0x100002:'Tone',0x100004:'Blend'},
-    // Stomp — dynamics
+    // Stomp - dynamics
     0x02000002:{0x100001:'Sustain',0x100002:'Level'},
     0x02000003:{0x100001:'Level',0x100002:'Sustain'},
     0x02000004:{0x100001:'Sustain',0x100002:'Level'},
     0x02000005:{0x100001:'Sens',0x100002:'Level'},
     0x02000006:{0x100001:'Amount',0x100002:'Level'},
     0x02000007:{0x100001:'Ramp',0x100002:'Depth'},
-    // Stomp — filter/synth
+    // Stomp - filter/synth
     0x020A0000:{0x100001:'Sens',0x100002:'Q'},
     0x020A0001:{0x100001:'Wave',0x100002:'Filter',0x100003:'Decay',0x100004:'Mix'},
     0x020A0002:{0x100001:'Wave',0x100002:'Filter',0x100003:'Decay',0x100004:'Mix'},
@@ -2582,7 +2582,7 @@ function renderL6TPreset(data) {
     const blocks = l6tResolveBlocks(data.blocks);
 
     // ── Meta
-    const who = [data.meta.band, data.meta.author].filter(Boolean).join(' — ');
+    const who = [data.meta.band, data.meta.author].filter(Boolean).join(' - ');
     document.getElementById('l6t-meta').innerHTML = `
         <div class="flex flex-wrap gap-4 items-start justify-between">
             <div>
@@ -2594,7 +2594,7 @@ function renderL6TPreset(data) {
                 <div class="text-amber-500 font-bold text-sm">${data.deviceName}</div>
                 ${data.meta.style ? `<div>Style: ${data.meta.style}</div>` : ''}
                 ${data.meta.appVersion ? `<div>Line 6 Edit ${data.meta.appVersion}</div>` : ''}
-                <div class="text-xs text-gray-700 mt-1 italic">L6T — read only, no Helix conversion</div>
+                <div class="text-xs text-gray-700 mt-1 italic">L6T: read only, no Helix conversion</div>
             </div>
         </div>`;
 

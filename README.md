@@ -19,7 +19,7 @@ Upload a preset file to explore its signal chain, block parameters, snapshots, f
 - **Remove blocks / DSPs**: soft-mark blocks for removal (shown with strikethrough); removed blocks are excluded when exporting
 - **Export modified preset**: download the modified `.hlx` file with your changes applied
 - **HX Stomp compatibility check**: warns when a preset exceeds the Stomp's 8-block limit or uses models the Stomp doesn't have
-- **Convert Helix presets to HX Stomp / Stomp XL** — merge DSP 1 and DSP 2 into a single chain, remove blocks down to the 8-block limit, then convert. Snapshots, expression pedal assignments and block states carry over; Helix-only settings are dropped and footswitch assignments are listed for you to reassign
+- **Convert Helix presets to HX Stomp / Stomp XL**: merge DSP 1 and DSP 2 into a single chain, remove blocks down to the 8-block limit, then convert. Snapshots, expression pedal assignments and block states carry over; Helix-only settings are dropped and footswitch assignments are listed for you to reassign
 - **IR slot viewer**: see which impulse response slots are used and their UUIDs
 - **MIDI / controller assignments**: view CC and controller mappings
 - **Footswitch assignments**: see which footswitch controls each block
